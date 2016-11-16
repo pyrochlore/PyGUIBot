@@ -1,0 +1,176 @@
+#!/bin/sh
+# -*- coding: utf-8 -*-
+# vim: noexpandtab
+"exec" "python" "-B" "$0" "$@"
+# (c) gehrmann
+
+from __future__ import division, unicode_literals
+import logging
+import os
+import subprocess
+import sys
+
+import wx
+import wx.lib.mixins.inspection
+
+if __name__ == '__main__':
+	# Sets utf-8 (instead of latin1) as default encoding for every IO
+	reload(sys); sys.setdefaultencoding('utf-8')
+	# Runs in application's working directory
+	os.chdir('.'); sys.path.insert(0, os.path.realpath(os.getcwd()))
+	# Working interruption by Ctrl-C
+	import signal; signal.signal(signal.SIGINT, signal.SIG_DFL)
+	# Configures logging
+	logging.basicConfig(
+		level=logging.WARN, datefmt='%H:%M:%S',
+		format='%(asctime)s.%(msecs)03d %(pathname)s:%(lineno)d [%(levelname)s]  %(message)s',
+	)
+	logging.getLogger(__name__).setLevel(logging.DEBUG)
+
+__doc__ = """Runs interactive dialog to crop image"""
+
+
+class Controller(object):
+
+	def __init__(self, path, from_point, to_point, title='Main window', geometry=None, screen_offset=None, engine=None):
+		self._from_point, self._to_point = from_point, to_point
+
+		# Creates testable window (shortcut is Ctrl+Alt+I)
+		self._app = app = wx.lib.mixins.inspection.InspectableApp()
+		if geometry is not None:
+			window_size, window_position = \
+				[map(int, x.split('x' if 'x' in x else '+')) for x in geometry.split('+', 1)]
+		else:
+			window_size, window_position = \
+				[x - 2 * screen_offset for x in wx.GetDisplaySize()], 2 * [screen_offset]
+		self._window = window = wx.Dialog(
+			parent=None,
+			title=title,
+			pos=window_position,
+			size=window_size,
+		)
+		window.SetSizer(wx.BoxSizer(wx.VERTICAL))
+		app.SetTopWindow(window)
+
+		if True:  # Extra indent for sub-widgets
+			scrolled_frame = wx.ScrolledWindow(parent=window)
+			scrolled_frame.SetScrollbars(pixelsPerUnitX=1, pixelsPerUnitY=1, noUnitsX=False, noUnitsY=False)
+			scrolled_frame.SetSizer(wx.BoxSizer(wx.VERTICAL))
+			window.GetSizer().Add(scrolled_frame, proportion=1, flag=wx.LEFT | wx.TOP | wx.RIGHT | wx.EXPAND, border=10)
+
+			if True:  # Extra indent for sub-widgets
+				# Loads bitmap from source image to crop
+				self._path = path
+				image = wx.Image(path, wx.BITMAP_TYPE_ANY)
+				self._image_bitmap = image_bitmap = image.ConvertToBitmap()
+
+				# Creates widget to draw on it
+				self._frame = frame = wx.Panel(parent=scrolled_frame, size=image_bitmap.GetSize())
+				frame.Bind(wx.EVT_PAINT, self.__on_painting)
+				# frame.Bind(wx.EVT_CHAR_HOOK, self.__on_key_pressed)
+				frame.Bind(wx.EVT_LEFT_DOWN, self.__on_mouse_left_pressed)
+				frame.Bind(wx.EVT_MOTION, self.__on_mouse_moved)
+				frame.Bind(wx.EVT_LEFT_UP, self.__on_mouse_left_released)
+				scrolled_frame.GetSizer().Add(frame, proportion=1, flag=wx.ALL | wx.EXPAND, border=0)
+
+			frame_2 = wx.Panel(parent=window)
+			frame_2.SetSizer(wx.BoxSizer(wx.HORIZONTAL))
+			window.GetSizer().Add(frame_2, proportion=0, flag=wx.ALL | wx.EXPAND, border=10)
+			if True:  # Extra indent for sub-widgets
+				frame_2.GetSizer().AddSpacer((0, 0), 1, wx.EXPAND, 0)
+
+				button = wx.Button(parent=frame_2, id=wx.ID_CANCEL)
+				frame_2.GetSizer().Add(button, proportion=0, flag=wx.LEFT, border=10)
+
+				button = wx.Button(parent=frame_2, id=wx.ID_OK)
+				frame_2.GetSizer().Add(button, proportion=0, flag=wx.LEFT, border=10)
+				button.SetDefault()
+
+		# Initially draws crop rectangle with a whole image
+		self._from_point[:], self._to_point[:] = [0, 0], [x - 1 for x in image_bitmap.GetSize()]
+
+	"""View's event handlers"""
+
+	def __on_painting(self, event):
+		dc = wx.PaintDC(self._frame)
+		# dc.Clear()
+
+		# Draws image
+		dc.DrawBitmap(self._image_bitmap, 0, 0)
+
+		# Draws red rectangle
+		rectangle = wx.RectPP(self._from_point, self._to_point)
+		dc.SetPen(wx.Pen('red', 1))
+		dc.SetBrush(wx.Brush(wx.Colour(0xC0, 0xC0, 0xC0, 0x80)) if 'wxMac' in wx.PlatformInfo else wx.TRANSPARENT_BRUSH)
+		dc.DrawRectangleRect(rectangle)
+
+	def __on_mouse_left_pressed(self, event):
+		self._frame.CaptureMouse()
+		self._from_point[:] = self._normalize_position(event.GetPosition())
+
+	def __on_mouse_moved(self, event):
+		if event.Dragging() and event.LeftIsDown():
+			self._to_point[:] = self._normalize_position(event.GetPosition())
+
+			self._frame.Refresh()  # Repaints image and rectangle
+
+	def __on_mouse_left_released(self, event):
+		if self._frame.HasCapture():
+			self._frame.ReleaseMouse()
+
+	"""Helpers"""
+
+	def loop(self):
+		return self._window.ShowModal()
+
+	def _normalize_position(self, position):
+		"""Normalizes coordinates to image bitmap boundaries"""
+		return [min(max(0, x), max_x - 1) for x, max_x in zip(position, self._image_bitmap.GetSize())]
+
+
+def run_controller():
+	# Parses command line arguments
+	import argparse
+	parser = argparse.ArgumentParser(description=__doc__)
+	parser.add_argument('path', nargs=1, help='Path to image')
+	parser.add_argument('--geometry', help='Window geometry (Format: WxH+X+Y)')
+	parser.add_argument('--title', default='Interactive crop', help='Window title')
+	parser.add_argument('--engine', default='pil', help='Image processing engine')
+	parser.add_argument('--screen-offset', type=int, default=0, help='Window offset from screen borders. Ignored if geometry was set.')
+	args = parser.parse_args()  # Breaks here if something goes wrong
+	args.path, = args.path  # Could not be made with nargs anyhow
+
+	args.from_point, args.to_point = [], []
+
+	result = Controller(**vars(args)).loop()
+
+	if result == wx.ID_OK:
+		(x1, y1), (x2, y2) = args.from_point, args.to_point
+
+		x, y = min(x1, x2), min(y1, y2)
+		width, height = abs(x1 - x2), abs(y1 - y2)
+
+		geometry = '{width}x{height}+{x}+{y}'.format(**locals())
+		print geometry
+
+		# Crops with PIL (Python Imaging Library)
+		if args.engine == 'pil':
+			import PIL
+			import PIL.Image
+			PIL.Image.open(args.path).crop([x, y, x + width, y + height]).save(args.path)
+
+		# Crops with ImageMagick
+		elif args.engine == 'imagemagick':
+			command = 'convert {src} -crop {geometry} {dst}'.format(
+				src=args.path,
+				geometry=geometry,
+				dst=args.path,
+			)
+			subprocess.check_output(command, shell=True)
+
+
+def main():
+	run_controller()
+
+if __name__ == '__main__':
+	main()
