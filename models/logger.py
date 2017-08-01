@@ -11,14 +11,15 @@ import sys
 import threading
 import time
 
-import pymouse
+# import pymouse
 import pykeyboard
 
 if __name__ == '__main__':
 	# Set utf-8 (instead of latin1) as default encoding for every IO
 	reload(sys); sys.setdefaultencoding('utf-8')
 	# Run in application's working directory
-	os.chdir((os.path.dirname(__file__) or '.') + '/..'); sys.path.insert(0, os.path.realpath(os.getcwd()))
+	sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + '/..')
+	os.chdir(sys.path[0])
 	# Working interruption by Ctrl-C
 	# import signal; signal.signal(signal.SIGINT, signal.SIG_DFL)
 	signal.signal(signal.SIGINT, signal.default_int_handler)
@@ -79,10 +80,6 @@ class Logger(object):
 
 	# def screen_size(self):
 	#     return self._mouse.screen_size()
-
-
-def test_logger():
-	Logger()
 
 
 def run_logger():

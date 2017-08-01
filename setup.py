@@ -38,22 +38,22 @@ def run_setup(**kwargs):
 		author_email='gehrmann.mail@gmail.com',
 		options=dict(
 			build_exe=dict(
-				packages=['controllers'],
-				excludes=['urllib'],  # Fixes "cx_Freeze.freezer.ConfigError: no file named sys (for module urllib.sys)"
-				includes=['atexit'],
-				include_files=[
-					'__startup__.py',  # Run script
-					'views',
-					'data',  # Example data
-					'images',
-				],
-				# zip_includes=[
+				# packages=['controllers'],
+				# excludes=['urllib'],  # Fixes "cx_Freeze.freezer.ConfigError: no file named sys (for module urllib.sys)"
+				# includes=['atexit'],
+				# include_files=[
+				#     # # '__startup__.py',  # Run script
+				#     # 'views',
+				#     # 'data',  # Example data
+				#     # 'images',
 				# ],
+				# # zip_includes=[
+				# # ],
 			)
 		),
 		executables=[
 			cx_Freeze.Executable(
-				script='pyguibot.py',
+				script='pyguibot',
 				# initScript='Console',
 				# initScript='ConsoleSetLibPath',
 				# initScript='SharedLib',
@@ -84,7 +84,7 @@ def main():
 	parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=__doc__)
 	parser.add_argument('action', choices=[
 		'build', 'bdist_dmg', 'bdist_mac', 'bdist_msi', 'bdist_wininst',
-		'build_exe', 'install', 'install_exe', 'setup', 'bdist_rpm',
+		'build_exe', 'install', 'install_exe', 'setup', 'bdist_rpm', 'sdist',
 	], help='Action type')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
 

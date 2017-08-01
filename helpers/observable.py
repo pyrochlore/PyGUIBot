@@ -8,6 +8,9 @@ from __future__ import division, unicode_literals
 
 __doc__ = """This module provides 'Observer-Observable' Pattern
 
+Environment variables:
+	LOGGING_<MODULE> -- Logging level ( NOTSET | DEBUG | INFO | WARNING | ERROR | CRITICAL )
+
 Todo:
 	* Rewrite the implementation of breakpoints to weak dictionary
 """
@@ -17,6 +20,7 @@ from colorama import (
 	Back as BG,
 	Style as ST,
 )
+import logging
 import os
 import sys
 import threading
@@ -24,8 +28,20 @@ import traceback
 import weakref
 
 if __name__ == '__main__':
+	# Sets utf-8 (instead of latin1) as default encoding for every IO
 	reload(sys); sys.setdefaultencoding('utf-8')
-	os.chdir((os.path.dirname(__file__) or '.') + '/..'); sys.path.insert(0, os.path.realpath(os.getcwd()))
+	# Runs in application's working directory
+	os.chdir((os.path.dirname(os.path.realpath(__file__)) or '.') + '/..'); sys.path.insert(0, os.path.realpath(os.getcwd()))
+	# Working interruption by Ctrl-C
+	import signal; signal.signal(signal.SIGINT, signal.default_int_handler)
+	# Configures logging
+	logging.basicConfig(
+		level=logging.WARN, datefmt='%H:%M:%S',
+		format='%(asctime)s.%(msecs)03d %(pathname)s:%(lineno)d [%(levelname)s]  %(message)s',
+	)
+logging.getLogger(__name__).setLevel(getattr(logging, os.environ.get('LOGGING_' + __name__.replace('.', '_').upper(), 'WARNING')))
+
+from helpers.timer import Timer
 
 
 class Observable(object):
@@ -77,7 +93,8 @@ class _Observable(object):
 		self._handlers_to_signals = weakref.WeakKeyDictionary()
 
 	def bind(self, handler, invoke_in_main_thread=False):
-		_make_breakpoint(handler)
+		self._save_breakpoint(handler)
+
 		self._handlers.add(handler)
 
 		if invoke_in_main_thread:
@@ -96,11 +113,15 @@ class _Observable(object):
 						super(_Signal, self).__init__()
 
 						def invoke(args_id, kwargs_id):
-							function(*self.args.pop(str(args_id)), **self.kwargs.pop(str(kwargs_id)))
+							if logging.getLogger(__name__).level == logging.DEBUG:
+								with Timer('observable for ' + (function.im_func.func_name if hasattr(function, 'im_function') else function.func_name)):
+									function(*self.args.pop(str(args_id)), **self.kwargs.pop(str(kwargs_id)))
+							else:
+								function(*self.args.pop(str(args_id)), **self.kwargs.pop(str(kwargs_id)))
 
 						self.trigger.connect(invoke)
 			else:
-				raise Exception('Argument "invoke_in_main_thread" was enabled, but from GUI-Toolkits only PyQt4/PyQt5 is supported.')
+				raise Exception('Argument "invoke_in_main_thread" was enabled, but from GUI-Toolkits only PyQt4/PyQt5 are supported.')
 			self._handlers_to_signals[handler] = _Signal(handler)
 
 	def unbind(self, handler):
@@ -139,21 +160,21 @@ class _Observable(object):
 
 		return result
 
+	@classmethod
+	def _save_breakpoint(cls, item):
+		"""Stores current breakpoint, helps to detect, for example, where was broken callback set"""
+		try:
+			raise Exception()
+		except Exception:
+			item.__dict__['breakpoint'] = traceback.extract_stack()[:-1]
 
-def _make_breakpoint(item):
-	"""Stores current breakpoint, helps to detect, for example, where was broken callback set"""
-	try:
-		raise Exception()
-	except Exception:
-		item.__dict__['breakpoint'] = traceback.extract_stack()[:-1]
-
-	return item
+		return item
 
 
 # __doc__ += ''.join(sorted(['\n{0.__name__}\n\t{0.__doc__}'.format(x) for x in locals().values() if getattr(x, '__module__', None) == __name__]))
 
 
-def _run_Observable():
+def run_observable():
 	class Source(object):
 		@Observable
 		@classmethod
@@ -199,7 +220,7 @@ def _run_Observable():
 	print >>sys.stderr, "result:", result; sys.stdout.flush()  # FIXME: must be removed
 
 
-def _run_Signal():
+def run_signal():
 	# def function(*args, **kwargs):
 	#     print >>sys.stderr, "args, kwargs,", args, kwargs; sys.stderr.flush()  # FIXME: must be removed
 	# signal = Signal(function)
@@ -211,8 +232,12 @@ def _run_Signal():
 
 
 def main():
-	# _run_Observable()
-	_run_Signal()
+	import argparse
+	parser = argparse.ArgumentParser(add_help=False)
+	parser.add_argument('-r', '--run-function', default='observable', choices=[k[len('run_'):] for k in globals() if k.startswith('run_')], help='Function to run (without "run_"-prefix)')
+	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
+
+	globals()['run_' + kwargs['run_function']]()
 
 if __name__ == '__main__':
 	main()

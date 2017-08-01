@@ -1,6 +1,6 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
-# vim: noexpandtab
+# vim: noexpandtab ft=python
 "exec" "python" "-B" "$0" "$@"
 # (c) gehrmann
 

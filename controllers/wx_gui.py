@@ -23,7 +23,8 @@ if __name__ == '__main__':
 	# Sets utf-8 (instead of latin1) as default encoding for every IO
 	reload(sys); sys.setdefaultencoding('utf-8')
 	# Runs in application's working directory
-	os.chdir((os.path.dirname(__file__) or '.') + '/..'); sys.path.insert(0, os.path.realpath(os.getcwd()))
+	sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + '/..')
+	os.chdir(sys.path[0])
 	# Working interruption by Ctrl-C
 	signal.signal(signal.SIGINT, signal.default_int_handler)
 	# Configures logging

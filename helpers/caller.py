@@ -9,22 +9,26 @@ from __future__ import division, unicode_literals
 __doc__ = """
 This module provides delayed asynchronous calls
 
+Environment variables:
+	LOGGING_<MODULE> -- Logging level ( NOTSET | DEBUG | INFO | WARNING | ERROR | CRITICAL )
+
 Todo:
 	* Smart breakpoints
 """
 
+import functools
 import logging
 import os
 import sys
 import threading
+import traceback
 import weakref
 
 if __name__ == '__main__':
 	# Sets utf-8 (instead of latin1) as default encoding for every IO
 	reload(sys); sys.setdefaultencoding('utf-8')
 	# Runs in application's working directory
-	os.chdir((os.path.dirname(__file__) or '.') + '/..'); sys.path.insert(0, os.path.realpath(os.getcwd()))
-	print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'os.getcwd()=', os.getcwd(); sys.stderr.flush()  # FIXME: must be removed/commented
+	os.chdir((os.path.dirname(os.path.realpath(__file__)) or '.') + '/..'); sys.path.insert(0, os.path.realpath(os.getcwd()))
 	# Working interruption by Ctrl-C
 	import signal; signal.signal(signal.SIGINT, signal.default_int_handler)
 	# Configures logging
@@ -32,7 +36,7 @@ if __name__ == '__main__':
 		level=logging.WARN, datefmt='%H:%M:%S',
 		format='%(asctime)s.%(msecs)03d %(pathname)s:%(lineno)d [%(levelname)s]  %(message)s',
 	)
-logging.getLogger(__name__).setLevel(logging.DEBUG)
+logging.getLogger(__name__).setLevel(getattr(logging, os.environ.get('LOGGING_' + __name__.replace('.', '_').upper(), 'WARNING')))
 
 if __name__ == '__main__':
 	# Uses PyQt as default GUI-toolkit for runs and tests
@@ -46,7 +50,9 @@ elif 'PyQt5' in sys.modules:
 elif 'wx' in sys.modules:
 	import wx
 else:
-	raise Exception('From GUI-Toolkits only PyQt4/PyQt5 and wxWidgets are supported.')
+	logging.getLogger(__name__).warning('From GUI-Toolkits only PyQt4/PyQt5 and wxWidgets are supported.')
+
+from helpers.timer import Timer
 
 
 class Caller(object):
@@ -79,6 +85,9 @@ class Caller(object):
 			8
 
 		"""
+
+		cls._save_breakpoint(function)
+
 		# return function(*args, **kwargs)
 		previous_timer = cls._once_timers.pop(function, None)
 		# previous_threads = cls._once_threads.pop(function, [])
@@ -86,9 +95,10 @@ class Caller(object):
 			logging.debug("Removing existing timer for: {}".format(function))
 			if 'PyQt4' in sys.modules or 'PyQt5' in sys.modules:
 				if isinstance(previous_timer, QtCore.QTimer):
-					# Stops QtCore.QTimer
-					previous_timer.stop()
-					previous_timer.deleteLater()
+					pass  # Qt can not stop timer from another thread. Just remove from timers list and forget.
+					# # Stops QtCore.QTimer
+					# previous_timer.stop()
+					# previous_timer.deleteLater()
 				else:
 					print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'Can not stop somethin else as QTimer'; sys.stderr.flush()  # FIXME: must be removed/commented
 			elif 'wx' in sys.modules:
@@ -98,16 +108,28 @@ class Caller(object):
 		if 'PyQt4' in sys.modules or 'PyQt5' in sys.modules:
 
 			def run_timer():
-				def run_function():
-					previous = cls._once_timers.pop(function, None)
-					function(*args, **kwargs)
+				def run_function(cls, timer, function):
+					# If the timer was not thrown
+					if cls._once_timers.get(function, None) == timer:
+						previous_timer = cls._once_timers.pop(function, None)
+						if logging.getLogger(__name__).level == logging.DEBUG:
+							with Timer('caller for ' + (function.im_func.func_name if hasattr(function, 'im_function') else function.func_name)):
+								function(*args, **kwargs)
+						else:
+							try:
+								# print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'FUNCTION', function; sys.stderr.flush()  # FIXME: must be removed/commented
+								function(*args, **kwargs)
+							except Exception as e:
+								print >>sys.stderr, 'Traceback (most recent call last):\n', "".join(traceback.format_list(function.breakpoint[:-1])), 'Callback was set here.\n'
+								raise
 				# Invokes run_function in main thread after delay. FIXME: works only in PyQt4
 				timer = QtCore.QTimer()
-				timer.timeout.connect(run_function, QtCore.Qt.DirectConnection)  # QtCore.Qt.DirectConnection adds timer into main loop
+				timer.timeout.connect(functools.partial(run_function, cls, timer, function), QtCore.Qt.DirectConnection)  # QtCore.Qt.DirectConnection adds timer into main loop
 				timer.setSingleShot(True)
 				timer.start(delay * 1000)  # In ms
 				cls._once_timers[function] = timer
 				timer.moveToThread(QtWidgets.qApp.thread())
+				# timer.moveToThread(QtCore.QThread.currentThread())
 
 			if threading.current_thread().name != 'MainThread':
 				# Changes threading.Thread to QtCore.QThread, stores new QThread in _once_threads
@@ -165,12 +187,12 @@ class Caller(object):
 	_breakpoints = weakref.WeakKeyDictionary()
 
 	@classmethod
-	def save_breakpoint(item):
+	def _save_breakpoint(cls, item):
 		# Save current breakpoint for future exceptions
 		try:
 			raise Exception()
 		except Exception:
-			item.__dict__['breakpoint'] = traceback_extract_stack()[:-1]
+			item.__dict__['breakpoint'] = traceback.extract_stack()[:-1]
 
 		return item
 
@@ -238,11 +260,11 @@ def run_doctest():
 
 def main():
 	import argparse
-	parser = argparse.ArgumentParser()
-	parser.add_argument('-r', '--run-function', help='Function to run (without "run_"-prefix)')
+	parser = argparse.ArgumentParser(add_help=False)
+	parser.add_argument('-r', '--run-function', default='caller', choices=[k[len('run_'):] for k in globals() if k.startswith('run_')], help='Function to run (without "run_"-prefix)')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
 
-	globals()['run_' + (kwargs['run_function'] or 'caller')]()
+	globals()['run_' + kwargs['run_function']]()
 
 if __name__ == '__main__':
 	main()

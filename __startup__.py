@@ -1,1 +1,0 @@
-../trunk/pyguibot.py

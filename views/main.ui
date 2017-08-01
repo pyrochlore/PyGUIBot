@@ -50,9 +50,6 @@
       <property name="selectionBehavior">
        <enum>QAbstractItemView::SelectItems</enum>
       </property>
-      <property name="headerHidden">
-       <bool>true</bool>
-      </property>
       <property name="expandsOnDoubleClick">
        <bool>false</bool>
       </property>
@@ -154,15 +151,20 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
+   <addaction name="open_button"/>
+   <addaction name="separator"/>
    <addaction name="record_button"/>
    <addaction name="stop_button"/>
    <addaction name="run_button"/>
    <addaction name="separator"/>
-   <addaction name="move_left_button"/>
-   <addaction name="move_right_button"/>
+   <addaction name="shift_left_button"/>
+   <addaction name="shift_right_button"/>
    <addaction name="separator"/>
    <addaction name="comment_button"/>
    <addaction name="uncomment_button"/>
+   <addaction name="separator"/>
+   <addaction name="join_button"/>
+   <addaction name="split_button"/>
   </widget>
   <action name="run_button">
    <property name="icon">
@@ -214,24 +216,54 @@
     <string>Uncomment</string>
    </property>
   </action>
-  <action name="move_left_button">
+  <action name="shift_left_button">
    <property name="icon">
     <iconset>
      <normalon>../images/32/move-left.png</normalon>
     </iconset>
    </property>
    <property name="text">
-    <string>Move left</string>
+    <string>Shift left</string>
    </property>
   </action>
-  <action name="move_right_button">
+  <action name="shift_right_button">
    <property name="icon">
     <iconset>
      <normalon>../images/32/move-right.png</normalon>
     </iconset>
    </property>
    <property name="text">
-    <string>Move right</string>
+    <string>Shift right</string>
+   </property>
+  </action>
+  <action name="open_button">
+   <property name="icon">
+    <iconset>
+     <normalon>../images/32/open.png</normalon>
+    </iconset>
+   </property>
+   <property name="text">
+    <string>Open</string>
+   </property>
+  </action>
+  <action name="join_button">
+   <property name="icon">
+    <iconset>
+     <normalon>../images/32/join.png</normalon>
+    </iconset>
+   </property>
+   <property name="text">
+    <string>Join</string>
+   </property>
+  </action>
+  <action name="split_button">
+   <property name="icon">
+    <iconset>
+     <normalon>../images/32/split.png</normalon>
+    </iconset>
+   </property>
+   <property name="text">
+    <string>Split</string>
    </property>
   </action>
  </widget>
