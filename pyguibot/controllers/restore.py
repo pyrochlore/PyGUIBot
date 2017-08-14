@@ -5,7 +5,6 @@
 # (c) gehrmann
 
 from __future__ import division
-import ast
 import datetime
 import logging
 import multiprocessing
@@ -35,7 +34,7 @@ if __name__ == '__main__':
 	)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
 
-
+from controllers.abstract import AbstractController
 from models.devices import (
 	Keyboard,
 	Mouse,
@@ -45,10 +44,10 @@ from models.devices import (
 __doc__ = """"""
 
 
-class RestoreController(object):
+class RestoreController(AbstractController):
 	""""""
 
-	def __init__(self, path, from_line, to_line, with_screencast):
+	def __init__(self, path, verbose, from_line, to_line, with_screencast):
 		self._src_path = src_path = path
 
 		screen_record_is_running = True
@@ -110,20 +109,18 @@ class RestoreController(object):
 					if from_line is not None and index < from_line or to_line is not None and to_line < index:
 						continue
 
-					# Skips empty lines and comments
-					if not line or line.lstrip().startswith('#'):
-						continue
+					event = self._restore(line.rstrip('\n'))
 
-					level = len(line) - len(line.lstrip())
+					# Skips empty lines and comments
+					if 'comments' in event:  # If line is commented
+						continue
 
 					# Skips level with exception occurred
 					if skip_level is not None:
-						if level >= skip_level:
+						if event['level'] >= skip_level:
 							continue
 						else:
 							skip_level = None
-
-					event = ast.literal_eval(line.lstrip())
 
 					try:
 						logging.getLogger(__name__).info('Status=%s', dict(index=index, code='current'))
@@ -145,9 +142,9 @@ class RestoreController(object):
 
 						if event['type'] == 'delay':
 							time.sleep(float(event['value']))
-						elif event['type'] == 'jump':
-							level += 1 + int(event['value'])
-							raise LookupError()
+						elif event['type'] == 'break':
+							event['level'] += 1 + int(event['value'])
+							raise LookupError('Breaking to {}.'.format(event['level']))
 						elif event['type'] == 'shell_command':
 							result = subprocess.check_output(event['value'], shell=True)
 							logging.getLogger(__name__).info('Result: %s', result.rstrip())
@@ -158,7 +155,7 @@ class RestoreController(object):
 						elif event['type'] == 'keyboard_tap':
 							self._tap(event['value'], delay=.08)
 						elif event['type'] == 'keyboard_type':
-							Keyboard.type(event['value'], interval=.08)
+							Keyboard.type(event['value'], interval=.12)
 						elif event['type'] == 'mouse_move':
 							Mouse.slide(pattern_x, pattern_y)
 						elif event['type'] == 'mouse_press':
@@ -173,10 +170,18 @@ class RestoreController(object):
 							Mouse.slide(pattern_x, pattern_y)
 							time.sleep(.2)
 							Mouse.click(pattern_x, pattern_y, button=1, count=1)
+							# Waits till reaction is shown
+							time.sleep(.2)
 						elif event['type'] == 'mouse_double_click':
 							Mouse.slide(pattern_x, pattern_y)
 							time.sleep(.2)
 							Mouse.click(pattern_x, pattern_y, button=1, count=2)
+						elif event['type'] == 'mouse_right_click':
+							Mouse.slide(pattern_x, pattern_y)
+							time.sleep(.2)
+							Mouse.click(pattern_x, pattern_y, button=2, count=1)
+							# Waits till drop down is popped
+							time.sleep(.2)
 						elif event['type'] == 'mouse_scroll':
 							Mouse.slide(pattern_x, pattern_y)
 							time.sleep(.2)
@@ -185,13 +190,13 @@ class RestoreController(object):
 
 					except LookupError as e:
 						logging.getLogger(__name__).info('Status=%s', dict(index=index, code=(
-							'completed' if event['type'] == 'jump' else 'failed'
+							'completed' if event['type'] == 'break' else 'failed'
 						)))
-						if level > 0:
-							logging.getLogger(__name__).info('Skipping level %s for %s', level, event)
-							skip_level = level
+						if event['level'] > 0:
+							logging.getLogger(__name__).info('Skipping level %s for %s', event['level'], event)
+							skip_level = event['level']
 						else:
-							raise
+							raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(line=index, event=event))), sys.exc_info()[2]
 		finally:
 			if with_screencast:
 				# Stops screen record thread and saves a screen record
@@ -315,10 +320,14 @@ def run_init():
 	import argparse
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('-p', '--path', required=bool(sys.stdin.isatty()), help='Directory path where to load tests')
+	parser.add_argument('-v', '--verbose', action='count', help='Raises logging level')
 	parser.add_argument('-f', '--from-line', type=int, help='Line to begin from')
 	parser.add_argument('-t', '--to-line', type=int, help='Line to end to')
 	parser.add_argument('-s', '--with-screencast', action='store_true', help='Writes a video screencast')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
+
+	# Raises verbosity level for script (through arguments -v and -vv)
+	logging.getLogger(__name__).setLevel((logging.WARNING, logging.INFO, logging.DEBUG)[min(kwargs['verbose'] or 0, 2)])
 
 	RestoreController(**kwargs)
 	print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'DONE'; sys.stderr.flush()  # FIXME: must be removed/commented

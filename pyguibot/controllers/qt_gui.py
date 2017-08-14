@@ -34,7 +34,7 @@ logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 from PyQt import QtCore, QtGui, QtWidgets, uic
 
-import controllers.abstract
+from controllers.abstract import AbstractController
 from helpers.caller import Caller
 from models.abstract import AttrDict, ObservableAttrDict
 # from models.settings import Settings
@@ -44,14 +44,15 @@ class _State(ObservableAttrDict):
 	pass
 
 
-class QtGuiController(controllers.abstract.AbstractController):
-	def __init__(self, path, autorun, autoexit, geometry, with_screencast):
+class QtGuiController(AbstractController):
+	def __init__(self, path, verbose, autorun, autoexit, geometry, with_screencast):
 		self._app = app = QtWidgets.QApplication(sys.argv)
 
 		# Models
 		self._state_model = state_model = _State()
 		state_model.src_path = path
 		state_model.src_path_events_observer = None
+		state_model.verbose = verbose
 		state_model.process = None
 		state_model.autoexit = autoexit
 		state_model.with_screencast = with_screencast
@@ -175,18 +176,7 @@ class QtGuiController(controllers.abstract.AbstractController):
 		view = self.__view
 		tree = view.commands_tree
 
-		try:
-			# Create
-			with open(os.path.join(state_model.src_path if state_model.src_path is not None else '.', 'events.log'), 'a') as dst:
-				self._create(dst_path=state_model.src_path if state_model.src_path is not None else '.', dst=dst, with_exceptions=True)
-
-			# Delete previous
-			self._delete(index=index.row(), count=1)
-
-			# Move new to previous
-			self._move(from_index=-1, to_index=index.row(), count=1)
-		except subprocess.CalledProcessError:
-			pass
+		self._edit(index=index.row())
 
 	def __on_commands_tree_dragging(self, event, widget, previous_callback):
 		state_model = self._state_model
@@ -323,18 +313,6 @@ class QtGuiController(controllers.abstract.AbstractController):
 		# return str(index) + ':' + ''.join([''.join([xx for xx in unicode(entry.text(x)) if xx.isalnum()]) for x in range(tree.columnCount()) if x != 1])
 		return str(index)
 
-	def _restore(self, data):
-		"""Parses raw data, returns a dict-like object"""
-		event = ast.literal_eval(data.lstrip()) if data.lstrip().startswith('{') else dict(comments=data)
-		event['level'] = (len(data) - len(data.lstrip()))
-		return event
-
-	def _dump(self, event):
-		"""Dumps event to string"""
-		comments = event.pop('comments', '')
-		level = event.pop('level')
-		return '\t' * level + (unicode(event) if event else '') + ('  ' if event and comments else '') + comments + '\n'
-
 	def _fill(self):
 		state_model = self._state_model
 		view = self.__view
@@ -456,6 +434,8 @@ class QtGuiController(controllers.abstract.AbstractController):
 			self._reset_tree_entries_states()
 
 			command = [os.path.join(sys.path[0], './controllers/restore.py'), '--path', state_model.src_path]
+			for index in range(state_model.verbose or 0):
+				command += ['-v']
 			if from_line is not None:
 				command += ['--from-line', from_line]
 			if to_line is not None:
@@ -474,18 +454,19 @@ class QtGuiController(controllers.abstract.AbstractController):
 			)
 
 			def read_stdout():
-				while process.poll() is None and not process.stdout.closed and process.returncode is None:
-					line = process.stdout.readline().rstrip()
+				# while process.poll() is None and not process.stdout.closed and process.returncode is None:
+				#     line = process.stdout.readline().rstrip()
+				for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
 					logging.getLogger(__name__).debug('STDOUT: %s', line)
-				logging.getLogger(__name__).info('Subprocess stdout loop is closed')
+				logging.getLogger(__name__).debug('Subprocess stdout loop is closed')
 			stdout_thread = threading.Thread(target=read_stdout)
 			stdout_thread.daemon = True
 			stdout_thread.start()
 
 			def read_stderr():
-				while process.poll() is None and not process.stderr.closed and process.returncode is None:
-					line = process.stderr.readline().rstrip()
-					logging.getLogger(__name__).debug('STDERR: %s', line)
+				# while process.poll() is None and not process.stderr.closed and process.returncode is None:
+				#     line = process.stderr.readline().rstrip()
+				for line in (x.rstrip() for x in iter(process.stderr.readline, '')):
 					if '[INFO]  Status=' in line:
 						value = line.split('=', 1)[1]
 						if value.startswith('{'):
@@ -497,7 +478,13 @@ class QtGuiController(controllers.abstract.AbstractController):
 							entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
 							tree.scrollToItem(entry, tree.EnsureVisible)
 							tree.viewport().update()  # Force update (fix for Qt5)
-				logging.getLogger(__name__).info('Subprocess stderr loop is closed')
+					elif '[DEBUG]  ' in line:
+						logging.getLogger(__name__).debug(line)
+					elif '[INFO]  ' in line:
+						logging.getLogger(__name__).info(line)
+					else:
+						logging.getLogger(__name__).error(line)
+				logging.getLogger(__name__).debug('Subprocess stderr loop is closed')
 			stderr_thread = threading.Thread(target=read_stderr)
 			stderr_thread.daemon = True
 			stderr_thread.start()
@@ -507,15 +494,10 @@ class QtGuiController(controllers.abstract.AbstractController):
 				exit_code = process.returncode
 				if state_model.autoexit:
 					# raise Exception('Subprocess was terminated with exit code %s', exit_code)
-					logging.getLogger(__name__).warning('Subprocess was terminated with exit code %s', exit_code)
-
-
-					# Exits here if ...
+					logging.getLogger(__name__).error('Subprocess was terminated with exit code %s', exit_code)
 					QtWidgets.QApplication.exit(exit_code)
-					# sys.exit(exit_code)
-
-
-				logging.getLogger(__name__).info('Subprocess is terminated with exit code %s', exit_code)
+				else:
+					logging.getLogger(__name__).info('Subprocess is terminated with exit code %s', exit_code)
 				state_model.process = None
 			is_alive_thread = threading.Thread(target=check_if_alive)
 			is_alive_thread.daemon = True
@@ -533,6 +515,8 @@ class QtGuiController(controllers.abstract.AbstractController):
 
 		if state_model.process is None:
 			command = [os.path.join(sys.path[0], './controllers/capture.py'), '--path', state_model.src_path]
+			for index in range(state_model.verbose or 0):
+				command += ['-v']
 			logging.getLogger(__name__).info('Running subprocess: %s', command)
 
 			state_model.process = process = subprocess.Popen(
@@ -597,14 +581,32 @@ class QtGuiController(controllers.abstract.AbstractController):
 			cut, lines[from_index:(from_index + count or None)] = lines[from_index:(from_index + count or None)], []
 			lines[to_index:to_index] = cut
 
+	def _edit(self, index):
+		state_model = self._state_model
+
+		try:
+			with self._with_data() as lines:
+				previous_event = self._restore(lines[index].rstrip('\n'))
+			print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'previous_event=', previous_event, '<<<'; sys.stderr.flush()  # FIXME: must be removed/commented
+
+			# Create
+			with open(os.path.join(state_model.src_path or '.', 'events.log'), 'a') as dst:
+				self._create(dst_path=state_model.src_path or '.', dst=dst, with_exceptions=True, previous_event=previous_event)
+
+			# Delete previous
+			self._delete(index=index, count=1)
+
+			# Move new to previous
+			self._move(from_index=-1, to_index=index, count=1)
+		except subprocess.CalledProcessError:
+			pass
+
 	def _shift(self, indices, count):
 		with self._with_data() as lines:
-			print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'lines=', lines; sys.stderr.flush()  # FIXME: must be removed/commented
 			# Shifts/unshifts lines
 			for index in indices:
 				line = lines[index]
 				lines[index] = max(0, len(line) - len(line.lstrip()) + count) * '\t' + line.lstrip()
-			print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'lines=', lines; sys.stderr.flush()  # FIXME: must be removed/commented
 
 	def _comment(self, indices, comment=True):
 		with self._with_data() as lines:
@@ -619,7 +621,7 @@ class QtGuiController(controllers.abstract.AbstractController):
 			if indices:
 				# Combines values
 				dst_event = dict()
-				for src_event in [self._restore(lines[index]) for index in indices]:
+				for src_event in [self._restore(lines[index].rstrip('\n')) for index in indices]:
 					for key, value in src_event.items():
 						if value.__class__ == list:
 							dst_event.setdefault(key, []).extend(value)
@@ -627,7 +629,7 @@ class QtGuiController(controllers.abstract.AbstractController):
 							dst_event[key] = value
 
 				# Replaces first line
-				lines[min(indices)] = self._dump(dst_event)
+				lines[min(indices)] = self._dump(dst_event) + '\n'
 
 				# Removes other lines
 				for index in reversed(sorted(indices - set([min(indices)]))):
@@ -637,13 +639,13 @@ class QtGuiController(controllers.abstract.AbstractController):
 		with self._with_data() as lines:
 			if indices:
 				for index in indices:
-					src_event = self._restore(lines[index])
+					src_event = self._restore(lines[index].rstrip('\n'))
 
 					# Splits event
 					dst_events = [dict(src_event, **(dict(patterns=[x]) if x is not None else dict())) for x in src_event.get('patterns', [None])]
 
 					# Replaces previous event with new events
-					lines[index:(index + 1)] = [self._dump(x) for x in dst_events]
+					lines[index:(index + 1)] = [self._dump(x) + '\n' for x in dst_events]
 
 
 def run_init():
@@ -652,11 +654,15 @@ def run_init():
 	parser = argparse.ArgumentParser(description=__doc__)
 	# parser.add_argument('-p', '--path', required=bool(sys.stdin.isatty()), help='Directory path where to load tests')
 	parser.add_argument('-p', '--path', help='Directory path where to load tests')
+	parser.add_argument('-v', '--verbose', action='count', help='Raises logging level')
 	parser.add_argument('-g', '--geometry', help='Sets window geometry (position and size). Format: <width>x<height>[+-]<x>[+-]<y>.')
 	parser.add_argument('-a', '--autorun', action='store_true', help='Starts test automatically after launch')
 	parser.add_argument('-e', '--autoexit', action='store_true', help='Exits automatically if test terminates')
 	parser.add_argument('-s', '--with-screencast', action='store_true', help='Writes a video screencast')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
+
+	# Raises verbosity level for script (through arguments -v and -vv)
+	logging.getLogger(__name__).setLevel((logging.WARNING, logging.INFO, logging.DEBUG)[min(kwargs['verbose'] or 0, 2)])
 
 	sys.exit(QtGuiController(**kwargs).loop())
 

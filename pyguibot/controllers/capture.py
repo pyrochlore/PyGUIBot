@@ -45,7 +45,7 @@ class CaptureController(AbstractController):
 	6
 	"""
 
-	def __init__(self, path):
+	def __init__(self, path, verbose):
 		self._dst_path = dst_path = path
 
 		self._capture_keys = False
@@ -96,7 +96,11 @@ def run_init():
 	import argparse
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('-p', '--path', required=bool(sys.stdin.isatty()), help='Directory path where to load tests')
+	parser.add_argument('-v', '--verbose', action='count', help='Raises logging level')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
+
+	# Raises verbosity level for script (through arguments -v and -vv)
+	logging.getLogger(__name__).setLevel((logging.WARNING, logging.INFO, logging.DEBUG)[min(kwargs['verbose'] or 0, 2)])
 
 	sys.exit(CaptureController(**kwargs).loop())
 
