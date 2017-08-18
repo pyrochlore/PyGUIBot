@@ -127,7 +127,7 @@ class QtGuiController(AbstractController):
 
 		if model is state_model:
 			if current[0] is None or 'src_path' in current[0]:
-				if state_model.src_path is not None and os.path.isdir(state_model.src_path):
+				if state_model.src_path is not None:
 					self._set_src_path_events_observer()
 				Caller.call_once_after(0, self._fill)
 
@@ -202,9 +202,17 @@ class QtGuiController(AbstractController):
 		state_model = self._state_model
 		state_view = self.__view
 
-		result = QtWidgets.QFileDialog.getExistingDirectory(self.__view, 'Select Directory')
-		if result:
-			state_model.src_path = unicode(result)
+		# Shows dialog to select (maybe not existent) file
+		dialog = QtWidgets.QFileDialog(parent=self.__view)
+		dialog.setWindowTitle('Select file with data')
+		dialog.setNameFilter('PyGUIBot files (*.pyguibot)')
+		dialog.setFileMode(dialog.AnyFile)
+		# dialog.setOption(dialog.DontUseNativeDialog)
+		if dialog.exec_() == QtWidgets.QDialog.Accepted:
+			path = unicode(dialog.selectedFiles()[0])
+			if not path.endswith('.pyguibot'):
+				path += '.pyguibot'
+			state_model.src_path = path
 
 	def __on_run_triggered(self, event):
 		time.sleep(1.)
@@ -296,13 +304,13 @@ class QtGuiController(AbstractController):
 		state_model = self._state_model
 
 		def on_modified(event):
-			if event.src_path == os.path.join(state_model.src_path, 'events.log'):
+			if event.src_path == state_model.src_path:
 				Caller.call_once_after(.1, self._fill)
 		handler = watchdog.events.PatternMatchingEventHandler()
 		handler.on_modified = on_modified
 
 		state_model.src_path_events_observer = thread = watchdog.observers.Observer()
-		thread.schedule(handler, path=state_model.src_path)
+		thread.schedule(handler, path=os.path.dirname(state_model.src_path))
 		thread.start()
 
 	def _get_entry_fingerprint(self, index):
@@ -329,12 +337,14 @@ class QtGuiController(AbstractController):
 		# Opens file with commands or reads from stdin
 		if state_model.src_path is None and sys.stdin.isatty():
 			logging.getLogger(__name__).warning('Path is not selected but console is attached')
-		elif state_model.src_path is not None and not os.path.isdir(state_model.src_path):
-			logging.getLogger(__name__).warning('Path is selected but not exists: %s', state_model.src_path)
-		elif state_model.src_path is not None and not os.path.isfile(os.path.join(state_model.src_path, 'events.log')):
-			logging.getLogger(__name__).warning('Path is selected but "events.log" not exists: %s', state_model.src_path)
+		elif state_model.src_path is not None and not os.path.isdir(os.path.dirname(state_model.src_path)):
+			logging.getLogger(__name__).warning('Path is selected but directory not exists: %s', os.path.dirname(state_model.src_path))
 		else:
-			with open(os.path.join(state_model.src_path, 'events.log')) if state_model.src_path is not None else sys.stdin as src:
+			if state_model.src_path is not None and not os.path.isfile(state_model.src_path):
+				logging.getLogger(__name__).warning('Path is selected but file not exists: %s, will be created.', state_model.src_path)
+				with open(state_model.src_path, 'w') as src:
+					pass
+			with open(state_model.src_path) if state_model.src_path is not None else sys.stdin as src:
 				for line in (x.rstrip() for x in src):
 
 					event = self._restore(line)
@@ -373,7 +383,7 @@ class QtGuiController(AbstractController):
 					if event is not None and 'patterns' in event:
 						border = 1
 						spacing = 2
-						pixmaps = [QtGui.QPixmap(os.path.join((state_model.src_path if state_model.src_path is not None else '.'), x)) for x in event['patterns']]
+						pixmaps = [QtGui.QPixmap(os.path.join((os.path.dirname(state_model.src_path) if state_model.src_path is not None else '.'), x)) for x in event['patterns']]
 
 						# Scales pixmaps in order to prevent it to be found on a screen-shot
 						pixmaps = [x.scaled(QtCore.QSize(1.25 * x.width(), 1.25 * x.height()), QtCore.Qt.IgnoreAspectRatio) for x in pixmaps]
@@ -560,7 +570,7 @@ class QtGuiController(AbstractController):
 		state_model = self._state_model
 
 		# Loads lines
-		events_path = os.path.join(state_model.src_path if state_model.src_path is not None else '.', 'events.log')
+		events_path = state_model.src_path or './events.pyguibot'
 		with open(events_path) as src:
 			lines = src.readlines()
 
@@ -590,8 +600,8 @@ class QtGuiController(AbstractController):
 			print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'previous_event=', previous_event, '<<<'; sys.stderr.flush()  # FIXME: must be removed/commented
 
 			# Create
-			with open(os.path.join(state_model.src_path or '.', 'events.log'), 'a') as dst:
-				self._create(dst_path=state_model.src_path or '.', dst=dst, with_exceptions=True, previous_event=previous_event)
+			with open(state_model.src_path or './events.pyguibot', 'a') as dst:
+				self._create(dst_path=state_model.src_path or './events.pyguibot', dst=dst, with_exceptions=True, previous_event=previous_event)
 
 			# Delete previous
 			self._delete(index=index, count=1)

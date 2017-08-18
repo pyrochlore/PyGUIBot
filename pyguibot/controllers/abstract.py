@@ -58,12 +58,12 @@ class AbstractController(object):
 
 	def _create(self, dst_path, dst, with_exceptions=False, filename_type='datetime', previous_event=None):
 		if filename_type == 'incremental':
-			pattern_filename = self._generate_incremental_filename(dst_path)
+			pattern_filename = self._generate_incremental_filename(os.path.dirname(dst_path))
 		elif filename_type == 'datetime':
-			pattern_filename = self._generate_datetime_filename(dst_path)
+			pattern_filename = self._generate_datetime_filename(os.path.dirname(dst_path))
 		pattern_filename += '.png'
 
-		pattern_path = os.path.join(dst_path, pattern_filename)
+		pattern_path = os.path.join(os.path.dirname(dst_path), pattern_filename)
 
 		try:
 			try:
@@ -75,7 +75,7 @@ class AbstractController(object):
 					event['value'] = self._interactive_input_value(message='Enter delay (in s.)')
 
 				elif event_type == 'break':
-					event['value'] = self._interactive_input_value(message='Enter number of shifts to break (negative)')
+					event['value'] = self._interactive_input_value(message='Enter number of shifts to break ()')
 
 				elif event_type == 'keyboard_type':
 					event['value'] = self._interactive_input_value(message='Enter string to type')

@@ -181,7 +181,7 @@ setuptools.setup(
 		# ],
 		'gui_scripts': [
 			'pyguibot = controllers.qt_gui',
-			'.pgb = controllers.qt_gui',
+			'.pyguibot = controllers.qt_gui',
 		],
 	},
 )

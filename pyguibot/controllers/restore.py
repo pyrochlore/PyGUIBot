@@ -54,7 +54,7 @@ class RestoreController(AbstractController):
 
 		# Writes a screen record during execution
 		def record_screen():
-			path = os.path.join(src_path if src_path is not None else '.', '.screen_record' + datetime.datetime.now().strftime('-%Y-%m-%d-%H:%M:%S') + '.mkv')
+			path = os.path.join(os.path.dirname(src_path) if src_path is not None else '.', '.screen_record' + datetime.datetime.now().strftime('-%Y-%m-%d-%H:%M:%S') + '.mkv')
 			# Removes previously saved screen record
 			try:
 				os.unlink(path)
@@ -99,7 +99,7 @@ class RestoreController(AbstractController):
 			record_screen_thread.start()
 
 		try:
-			with open(os.path.join(src_path, 'events.log')) if src_path is not None else sys.stdin as src:
+			with open(src_path) if src_path is not None else sys.stdin as src:
 				pattern_x, pattern_y = 0, 0
 				skip_level = None
 
@@ -131,12 +131,16 @@ class RestoreController(AbstractController):
 							time.sleep(waiting_before_screenshot_time)
 
 							# Looks for image patterns on the screen
-							pattern_x, pattern_y = self._locate_image_patterns(
-								paths=[os.path.join(self._src_path if self._src_path is not None else '.', x) for x in event['patterns']],
-								timeout=float(event.get('timeout', 10.)),
-								delay=float(event.get('delay', 2.)),
-								threshold=float(event.get('threshold', .95)),
-							)
+							try:
+								patterns_paths = [os.path.join(os.path.dirname(self._src_path) if self._src_path is not None else '.', x) for x in event['patterns']]
+								pattern_x, pattern_y = self._locate_image_patterns(
+									paths=patterns_paths,
+									timeout=float(event.get('timeout', 10.)),
+									delay=float(event.get('delay', 2.)),
+									threshold=float(event.get('threshold', .95)),
+								)
+							except Exception as e:
+								raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(patterns_paths=patterns_paths))), sys.exc_info()[2]
 
 						logging.getLogger(__name__).info('Making event %s', event['type'])
 
@@ -254,10 +258,10 @@ class RestoreController(AbstractController):
 				if logging.getLevelName(logging.getLogger(__name__).getEffectiveLevel()) in ('DEBUG', 'INFO'):
 					# Stores failed patterns
 					for index, path in enumerate(paths):
-						shutil.copyfile(path, os.path.join(self._src_path if self._src_path is not None else '.', '.pattern_{}.png'.format(index)))
+						shutil.copyfile(path, os.path.join(os.path.dirname(self._src_path) if self._src_path is not None else '.', '.pattern_{}.png'.format(index)))
 
 					# Stores current screenshot
-					self._save_array(screenshot_array, os.path.join(self._src_path if self._src_path is not None else '.', '.screenshot.png'))  # Comment it in production
+					self._save_array(screenshot_array, os.path.join(os.path.dirname(self._src_path) if self._src_path is not None else '.', '.screenshot.png'))  # Comment it in production
 
 					# # Shows diff image on the screen
 					# window_title = 'Difference image'
@@ -291,9 +295,9 @@ class RestoreController(AbstractController):
 
 def run_find_template():
 	"""Only for developing purposes"""
-	src_path = 'data/'
-	template = RestoreController._load_array(os.path.join(src_path, '.pattern.png'))
-	screenshot = RestoreController._load_array(os.path.join(src_path, '.screenshot.png'))
+	src_path = 'data/events.pyguibot'
+	template = RestoreController._load_array(os.path.join(os.path.dirname(src_path), '.pattern.png'))
+	screenshot = RestoreController._load_array(os.path.join(os.path.dirname(src_path), '.screenshot.png'))
 	threshold = .8
 
 	# template = template.astype(numpy.uint8)
