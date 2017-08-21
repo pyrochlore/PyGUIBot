@@ -123,11 +123,12 @@ class RestoreController(AbstractController):
 							skip_level = None
 
 					try:
-						logging.getLogger(__name__).info('Status=%s', dict(index=index, code='current'))
+						print 'Doing step #{line_number}'.format(line_number=(index + 1))
+						print >>sys.stderr, 'Status={}'.format(dict(index=index, code='current'))
 						if 'patterns' in event:
 							# Delays before screen-shot
 							waiting_before_screenshot_time = 2.
-							logging.getLogger(__name__).info('Waiting %ss before looking for patterns', waiting_before_screenshot_time)
+							logging.getLogger(__name__).debug('Waiting %ss before looking for patterns', waiting_before_screenshot_time)
 							time.sleep(waiting_before_screenshot_time)
 
 							# Looks for image patterns on the screen
@@ -142,63 +143,81 @@ class RestoreController(AbstractController):
 							except Exception as e:
 								raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(patterns_paths=patterns_paths))), sys.exc_info()[2]
 
-						logging.getLogger(__name__).info('Making event %s', event['type'])
+						logging.getLogger(__name__).debug('Making event %s', event['type'])
 
 						if event['type'] == 'delay':
 							time.sleep(float(event['value']))
-						elif event['type'] == 'break':
-							event['level'] += 1 + int(event['value'])
-							raise LookupError('Breaking to {}.'.format(event['level']))
+						elif event['type'] in ('jump', 'break'):
+							time.sleep(.2)
+							if event['value'][:1] in '-+':
+								event['level'] += 1 + int(event['value'])
+							else:
+								event['level'] = int(event['value'])
+							raise LookupError('Message "{}", {event[type]}ing to {event[level]}.'.format(event.get('message', 'No message'), **locals()))
 						elif event['type'] == 'shell_command':
 							result = subprocess.check_output(event['value'], shell=True)
-							logging.getLogger(__name__).info('Result: %s', result.rstrip())
+							logging.getLogger(__name__).debug('Result: %s', result.rstrip())
 						elif event['type'] == 'keyboard_press':
+							time.sleep(.2)
 							self._tap(event['value'], delay=.08)
 						elif event['type'] == 'keyboard_release':
+							time.sleep(.2)
 							self._tap(event['value'], delay=.08)
 						elif event['type'] == 'keyboard_tap':
+							time.sleep(.2)
 							self._tap(event['value'], delay=.08)
 						elif event['type'] == 'keyboard_type':
+							time.sleep(.2)
 							Keyboard.type(event['value'], interval=.12)
 						elif event['type'] == 'mouse_move':
+							time.sleep(.2)
 							Mouse.slide(pattern_x, pattern_y)
+							time.sleep(.2)
 						elif event['type'] == 'mouse_press':
+							time.sleep(.2)
 							Mouse.slide(pattern_x, pattern_y)
 							time.sleep(.2)
 							Mouse.press(pattern_x, pattern_y)
+							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_release':
+							time.sleep(.2)
 							Mouse.slide(pattern_x, pattern_y)
 							time.sleep(.2)
 							Mouse.release(pattern_x, pattern_y)
+							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_click':
+							time.sleep(.2)
 							Mouse.slide(pattern_x, pattern_y)
 							time.sleep(.2)
 							Mouse.click(pattern_x, pattern_y, button=1, count=1)
-							# Waits till reaction is shown
-							time.sleep(.2)
+							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_double_click':
 							Mouse.slide(pattern_x, pattern_y)
 							time.sleep(.2)
 							Mouse.click(pattern_x, pattern_y, button=1, count=2)
+							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_right_click':
 							Mouse.slide(pattern_x, pattern_y)
 							time.sleep(.2)
 							Mouse.click(pattern_x, pattern_y, button=2, count=1)
-							# Waits till drop down is popped
-							time.sleep(.2)
+							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_scroll':
 							Mouse.slide(pattern_x, pattern_y)
 							time.sleep(.2)
 							Mouse.scroll(pattern_x, pattern_y)
-						logging.getLogger(__name__).info('Status=%s', dict(index=index, code='completed'))
+							time.sleep(.2)  # Waits till reaction is shown
+						print >>sys.stderr, 'Status={}'.format(dict(index=index, code='completed'))
 
 					except LookupError as e:
-						logging.getLogger(__name__).info('Status=%s', dict(index=index, code=(
-							'completed' if event['type'] == 'break' else 'failed'
+						print >>sys.stderr, 'Status={}'.format(dict(index=index, code=(
+							'completed' if event['type'] == 'jump' else 'failed'
 						)))
 						if event['level'] > 0:
-							logging.getLogger(__name__).info('Skipping level %s for %s', event['level'], event)
+							logging.getLogger(__name__).debug('Skipping level %s for %s', event['level'], event)
 							skip_level = event['level']
+						elif event['type'] == 'jump':
+							print e
+							break
 						else:
 							raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(line=index, event=event))), sys.exc_info()[2]
 		finally:
@@ -220,16 +239,15 @@ class RestoreController(AbstractController):
 
 	def _locate_image_patterns(self, paths, timeout, delay, threshold):
 		"""Looks for image patterns on the screen, returns centered position or None"""
-		logging.getLogger(__name__).info('Looking for patterns "%s"...', paths)
+		logging.getLogger(__name__).debug('Looking for patterns "%s"...', paths)
 
 		patterns = [self._load_array(x) for x in paths]
 
 		while True:
 			t1 = time.time()
 
-			sys.stderr.write('.'); sys.stderr.flush()  # FIXME: must be removed/commented
-
 			# Makes screen shot
+			logging.getLogger(__name__).debug('Capturing screen shot...')
 			screenshot = Screen.get_screenshot()
 
 			# Converts PIL image to numpy array
@@ -241,7 +259,7 @@ class RestoreController(AbstractController):
 
 				location = numpy.where(result >= threshold)
 				for x, y in zip(*location[::-1]):
-					logging.getLogger(__name__).info('Pattern "%s" is found', path)
+					logging.getLogger(__name__).debug('Pattern "%s" is found', path)
 					height, width = pattern.shape[:2]
 					return x + width // 2, y + height // 2
 					# cv2.rectangle(screenshot_array, (x, y), (x + width, y + height), (0, 0, 255), 1)
@@ -251,7 +269,7 @@ class RestoreController(AbstractController):
 			if _delay > 0:
 				time.sleep(_delay)
 			else:
-				logging.getLogger(__name__).info('Screenshot overtime %s', -_delay)
+				logging.getLogger(__name__).warning('Screenshot overtime %s', -_delay)
 			t2 = time.time()
 			timeout -= t2 - t1
 			if timeout <= 0:
@@ -334,7 +352,6 @@ def run_init():
 	logging.getLogger(__name__).setLevel((logging.WARNING, logging.INFO, logging.DEBUG)[min(kwargs['verbose'] or 0, 2)])
 
 	RestoreController(**kwargs)
-	print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'DONE'; sys.stderr.flush()  # FIXME: must be removed/commented
 
 
 def main():

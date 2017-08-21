@@ -45,7 +45,7 @@ class _State(ObservableAttrDict):
 
 
 class QtGuiController(AbstractController):
-	def __init__(self, path, verbose, autorun, autoexit, geometry, with_screencast):
+	def __init__(self, path, verbose, autorun, autoexit, geometry, with_screencast, disable_observer):
 		self._app = app = QtWidgets.QApplication(sys.argv)
 
 		# Models
@@ -56,6 +56,7 @@ class QtGuiController(AbstractController):
 		state_model.process = None
 		state_model.autoexit = autoexit
 		state_model.with_screencast = with_screencast
+		state_model.disable_observer = disable_observer
 
 		self._state_colors = dict(ready=None, current='#fc0', completed='#6c6', failed='#f00')
 		self._level_separator = '⎯'
@@ -303,15 +304,16 @@ class QtGuiController(AbstractController):
 	def _set_src_path_events_observer(self):
 		state_model = self._state_model
 
-		def on_modified(event):
-			if event.src_path == state_model.src_path:
-				Caller.call_once_after(.1, self._fill)
-		handler = watchdog.events.PatternMatchingEventHandler()
-		handler.on_modified = on_modified
+		if not state_model.disable_observer:
+			def on_modified(event):
+				if event.src_path == state_model.src_path:
+					Caller.call_once_after(.1, self._fill)
+			handler = watchdog.events.PatternMatchingEventHandler()
+			handler.on_modified = on_modified
 
-		state_model.src_path_events_observer = thread = watchdog.observers.Observer()
-		thread.schedule(handler, path=os.path.dirname(state_model.src_path))
-		thread.start()
+			state_model.src_path_events_observer = thread = watchdog.observers.Observer()
+			thread.schedule(handler, path=os.path.dirname(state_model.src_path))
+			thread.start()
 
 	def _get_entry_fingerprint(self, index):
 		view = self.__view
@@ -375,10 +377,13 @@ class QtGuiController(AbstractController):
 						text[2] += event['type'].replace(filename, '').strip('_')
 
 					if 'value' in event:
-						text[3] += '"' + event['value'] + '"'
+						text[3] += (text[3] and ', ') + '"' + event['value'] + '"'
 
 					if 'timeout' in event:
 						text[3] += (text[3] and ', ') + 'wait {}s'.format(event['timeout'])
+
+					if 'message' in event:
+						text[3] += (text[3] and ', ') + '"' + event['message'] + '"'
 
 					if event is not None and 'patterns' in event:
 						border = 1
@@ -467,7 +472,8 @@ class QtGuiController(AbstractController):
 				# while process.poll() is None and not process.stdout.closed and process.returncode is None:
 				#     line = process.stdout.readline().rstrip()
 				for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
-					logging.getLogger(__name__).debug('STDOUT: %s', line)
+					# logging.getLogger(__name__).debug('STDOUT: %s', line)
+					print >>sys.stdout, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), line; sys.stdout.flush()
 				logging.getLogger(__name__).debug('Subprocess stdout loop is closed')
 			stdout_thread = threading.Thread(target=read_stdout)
 			stdout_thread.daemon = True
@@ -477,7 +483,7 @@ class QtGuiController(AbstractController):
 				# while process.poll() is None and not process.stderr.closed and process.returncode is None:
 				#     line = process.stderr.readline().rstrip()
 				for line in (x.rstrip() for x in iter(process.stderr.readline, '')):
-					if '[INFO]  Status=' in line:
+					if line.startswith('Status='):
 						value = line.split('=', 1)[1]
 						if value.startswith('{'):
 							status = ast.literal_eval(value)
@@ -504,7 +510,10 @@ class QtGuiController(AbstractController):
 				exit_code = process.returncode
 				if state_model.autoexit:
 					# raise Exception('Subprocess was terminated with exit code %s', exit_code)
-					logging.getLogger(__name__).error('Subprocess was terminated with exit code %s', exit_code)
+					if exit_code:
+						logging.getLogger(__name__).error('Subprocess was terminated with exit code %s', exit_code)
+					else:
+						logging.getLogger(__name__).info('Subprocess was terminated')
 					QtWidgets.QApplication.exit(exit_code)
 				else:
 					logging.getLogger(__name__).info('Subprocess is terminated with exit code %s', exit_code)
@@ -669,6 +678,7 @@ def run_init():
 	parser.add_argument('-a', '--autorun', action='store_true', help='Starts test automatically after launch')
 	parser.add_argument('-e', '--autoexit', action='store_true', help='Exits automatically if test terminates')
 	parser.add_argument('-s', '--with-screencast', action='store_true', help='Writes a video screencast')
+	parser.add_argument('-d', '--disable-observer', action='store_true', help='Disables observing data for external updates and reloading them')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
 
 	# Raises verbosity level for script (through arguments -v and -vv)

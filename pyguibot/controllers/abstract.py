@@ -74,8 +74,9 @@ class AbstractController(object):
 				if event_type == 'delay':
 					event['value'] = self._interactive_input_value(message='Enter delay (in s.)')
 
-				elif event_type == 'break':
-					event['value'] = self._interactive_input_value(message='Enter number of shifts to break ()')
+				elif event_type in ('jump', 'break'):
+					event['value'] = self._interactive_input_value(message='Enter number of shifts to {event[type]} (-+ for relative)'.format(**locals()))
+					event['message'] = self._interactive_input_value(message='Enter message')
 
 				elif event_type == 'keyboard_type':
 					event['value'] = self._interactive_input_value(message='Enter string to type')
@@ -158,6 +159,7 @@ class AbstractController(object):
 	def _interactive_select_event_type():
 		event_types = (
 			'delay',
+			'jump',
 			'break',
 			'shell_command',
 			'keyboard_tap',
