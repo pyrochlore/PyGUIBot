@@ -49,12 +49,18 @@ class RestoreController(AbstractController):
 
 	def __init__(self, path, verbose, from_line, to_line, with_screencast):
 		self._src_path = src_path = path
+		self._tmp_path = tmp_path = os.path.join(os.path.dirname(src_path) if src_path is not None else '.', '.tmp')
+
+		# Creates temporary directory
+		if not os.path.exists(tmp_path):
+			os.makedirs(tmp_path)
 
 		screen_record_is_running = True
 
 		# Writes a screen record during execution
 		def record_screen():
-			path = os.path.join(os.path.dirname(src_path) if src_path is not None else '.', '.screen_record' + datetime.datetime.now().strftime('-%Y-%m-%d-%H:%M:%S') + '.mkv')
+			# path = os.path.join(self._tmp_path, 'screencast-' + datetime.datetime.now().strftime('%Y-%m-%d-%H:%M:%S') + '.mkv')
+			path = os.path.join(self._tmp_path, 'screencast.mkv')
 			# Removes previously saved screen record
 			try:
 				os.unlink(path)
@@ -69,11 +75,11 @@ class RestoreController(AbstractController):
 					break
 			else:
 				raise Exception('Can not detect screen resolution.')
-			# Runs new screen record
+			# Runs new screen record (binary "avconv" from package "libav-tools")
 			# With audio:
 			# command = "avconv -f alsa -ac 2 -i {audio_device} -f x11grab -r {fps} -s {width}x{height} -i {display}+{x},{y} {audio_codec_options} {video_codec_options} -threads {threads} \"{path}\""
 			# Without audio:
-			command = "avconv -f x11grab -r {fps} -s {width}x{height} -i {display}+{x},{y} {video_codec_options} -threads {threads} \"{path}\""
+			command = "avconv -loglevel error -f x11grab -r {fps} -s {width}x{height} -i {display}+{x},{y} {video_codec_options} -threads {threads} \"{path}\""
 			command = command.format(
 				display=':0.0', x=0, y=0, width=screen_width, height=screen_height,
 				audio_device='pulse',
@@ -84,7 +90,8 @@ class RestoreController(AbstractController):
 			)
 			logging.getLogger(__name__).info('Screen is recording into "%s"', path)
 			# logging.getLogger(__name__).debug('Command: %s', command)
-			process = subprocess.Popen(command, shell=True, preexec_fn=os.setsid, stdout=open(os.devnull, 'w'), stderr=open(os.devnull, 'w'))
+			# process = subprocess.Popen(command, shell=True, preexec_fn=os.setsid, stdout=open(os.devnull, 'w'), stderr=open(os.devnull, 'w'))
+			process = subprocess.Popen(command, shell=True, preexec_fn=os.setsid, stdout=open(os.devnull, 'w'), stderr=sys.stderr)
 
 			# Waits for a stop
 			while screen_record_is_running:
@@ -273,13 +280,14 @@ class RestoreController(AbstractController):
 			t2 = time.time()
 			timeout -= t2 - t1
 			if timeout <= 0:
-				if logging.getLevelName(logging.getLogger(__name__).getEffectiveLevel()) in ('DEBUG', 'INFO'):
+				# if logging.getLevelName(logging.getLogger(__name__).getEffectiveLevel()) in ('DEBUG', 'INFO'):
+				if True:
 					# Stores failed patterns
 					for index, path in enumerate(paths):
-						shutil.copyfile(path, os.path.join(os.path.dirname(self._src_path) if self._src_path is not None else '.', '.pattern_{}.png'.format(index)))
+						shutil.copyfile(path, os.path.join(self._tmp_path, 'pattern-{}.png'.format(index)))
 
 					# Stores current screenshot
-					self._save_array(screenshot_array, os.path.join(os.path.dirname(self._src_path) if self._src_path is not None else '.', '.screenshot.png'))  # Comment it in production
+					self._save_array(screenshot_array, os.path.join(self._tmp_path, 'screenshot.png'))  # Comment it in production
 
 					# # Shows diff image on the screen
 					# window_title = 'Difference image'
