@@ -1,6 +1,6 @@
 [Desktop Entry]
 StartupNotify=true
 StartupWMClass=pyguibot
-Name=PyGUIBot (GUI-tests)
-Categories=Application;TCOS;
+Name=PyGUIBot
+Categories=Application;
 Exec=/opt/pyguibot/controllers/qt_gui.py --path /opt/gui-tests/
