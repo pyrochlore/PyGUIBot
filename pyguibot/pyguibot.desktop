@@ -3,4 +3,4 @@ StartupNotify=true
 StartupWMClass=pyguibot
 Name=PyGUIBot
 Categories=Application;
-Exec=/opt/pyguibot/controllers/qt_gui.py --path /opt/gui-tests/
+Exec=/opt/pyguibot/controllers/qt_gui.py
