@@ -71,8 +71,11 @@ class Logger(object):
 
 		try:
 			while (True):
-				sys.stderr.write('.'); sys.stderr.flush()  # FIXME: must be removed/commented
-				time.sleep(.1)
+				sys.stdout.write('.'); sys.stdout.flush()  # FIXME: must be removed/commented
+				try:
+					time.sleep(.1)
+				except KeyboardInterrupt:
+					break
 		finally:
 			self._keyboard_events.stop()
 

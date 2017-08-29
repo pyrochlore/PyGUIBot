@@ -54,8 +54,7 @@ class CaptureController(AbstractController):
 
 		self._log_event_thread = None
 
-		if os.path.isdir(os.path.dirname(dst_path)) and not os.path.exists(dst_path):
-			# os.mkdir(dst_path)
+		if dst_path is not None and os.path.isdir(os.path.dirname(dst_path)) and not os.path.exists(dst_path):
 			with open(dst_path, 'w') as dst:
 				pass
 
@@ -88,7 +87,7 @@ class CaptureController(AbstractController):
 	"""Helpers"""
 
 	def loop(self):
-		with open(os.path.join(self._dst_path if self._dst_path is not None else '.', 'events.pyguibot'), 'a') as self._dst:
+		with open(self._dst_path or './events.pyguibot', 'a') as self._dst:
 			logger = Logger(tapped=self.__on_key_triggered)
 			logger.loop()
 

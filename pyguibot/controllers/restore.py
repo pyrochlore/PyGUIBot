@@ -227,6 +227,10 @@ class RestoreController(AbstractController):
 							break
 						else:
 							raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(line=index, event=event))), sys.exc_info()[2]
+
+		except KeyboardInterrupt:
+			pass
+
 		finally:
 			if with_screencast:
 				# Stops screen record thread and saves a screen record

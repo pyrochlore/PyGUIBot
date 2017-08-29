@@ -57,6 +57,7 @@ class QtGuiController(AbstractController):
 		state_model.autoexit = autoexit
 		state_model.with_screencast = with_screencast
 		state_model.disable_observer = disable_observer
+		state_model.status = 'Click "Play" to (re)run or "Record" to add new events...'
 
 		self._state_colors = dict(ready=None, current='#fc0', completed='#6c6', failed='#f00')
 		self._level_separator = '⎯'
@@ -148,6 +149,9 @@ class QtGuiController(AbstractController):
 				# palette.setColor(QtWidgets.QPalette.Base, QtGui.QColor('#f00' if state_model.process else '#fff'))
 				# view.commands_tree.setPalette(palette)
 				view.commands_tree.setEnabled(False if state_model.process else True)
+
+			if current[0] is None or 'status' in current[0]:
+				view.status_label.setText(state_model.status)
 
 	"""View's event handlers"""
 
@@ -448,9 +452,11 @@ class QtGuiController(AbstractController):
 			# Resets icons
 			self._reset_tree_entries_states()
 
-			command = [os.path.join(sys.path[0], './controllers/restore.py'), '--path', state_model.src_path]
+			command = [os.path.join(sys.path[0], './controllers/restore.py')]
 			for index in range(state_model.verbose or 0):
 				command += ['-v']
+			if state_model.src_path is not None:
+				command += ['--path', state_model.src_path]
 			if from_line is not None:
 				command += ['--from-line', from_line]
 			if to_line is not None:
@@ -506,7 +512,8 @@ class QtGuiController(AbstractController):
 			stderr_thread.start()
 
 			def check_if_alive():
-				process.wait()
+				with self._with_status('Please wait...'):
+					process.wait()
 				exit_code = process.returncode
 				if state_model.autoexit:
 					# raise Exception('Subprocess was terminated with exit code %s', exit_code)
@@ -533,9 +540,11 @@ class QtGuiController(AbstractController):
 		state_model = self._state_model
 
 		if state_model.process is None:
-			command = [os.path.join(sys.path[0], './controllers/capture.py'), '--path', state_model.src_path]
+			command = [os.path.join(sys.path[0], './controllers/capture.py')]
 			for index in range(state_model.verbose or 0):
 				command += ['-v']
+			if state_model.src_path is not None:
+				command += ['--path', state_model.src_path]
 			logging.getLogger(__name__).info('Running subprocess: %s', command)
 
 			state_model.process = process = subprocess.Popen(
@@ -548,31 +557,59 @@ class QtGuiController(AbstractController):
 			)
 
 			def read_stdout():
-				while process.poll() is None and not process.stdout.closed and process.returncode is None:
-					line = process.stdout.readline().rstrip()
+				# while process.poll() is None and not process.stdout.closed and process.returncode is None:
+				#     line = process.stdout.readline().rstrip()
+				for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
 					# logging.getLogger(__name__).debug('STDOUT: %s', line)
+					print >>sys.stdout, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), line; sys.stdout.flush()
 				logging.getLogger(__name__).info('Subprocess stdout loop is closed')
 			stdout_thread = threading.Thread(target=read_stdout)
 			stdout_thread.daemon = True
 			stdout_thread.start()
 
 			def read_stderr():
-				while process.poll() is None and not process.stderr.closed and process.returncode is None:
-					line = process.stderr.readline().rstrip()
-					logging.getLogger(__name__).debug('STDERR: %s', line)
+				# while process.poll() is None and not process.stderr.closed and process.returncode is None:
+				#     line = process.stderr.readline().rstrip()
+				for line in (x.rstrip() for x in iter(process.stderr.readline, '')):
+					if line.startswith('Status='):
+						value = line.split('=', 1)[1]
+						if value.startswith('{'):
+							status = ast.literal_eval(value)
+							entry = tree.topLevelItem(int(status['index']))
+							entry.setText(0, '' if status['code'] == 'current' else '')
+							entry.setForeground(1, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+							entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+							entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+							tree.scrollToItem(entry, tree.EnsureVisible)
+							tree.viewport().update()  # Force update (fix for Qt5)
+					elif '[DEBUG]  ' in line:
+						logging.getLogger(__name__).debug(line)
+					elif '[INFO]  ' in line:
+						logging.getLogger(__name__).info(line)
+					else:
+						logging.getLogger(__name__).error(line)
 				logging.getLogger(__name__).info('Subprocess stderr loop is closed')
 			stderr_thread = threading.Thread(target=read_stderr)
 			stderr_thread.daemon = True
 			stderr_thread.start()
 
 			def check_if_alive():
-				process.wait()
+				with self._with_status('Press "Pause" to create new event...'):
+					process.wait()
 				exit_code = process.returncode
 				logging.getLogger(__name__).info('Subprocess is terminated with exit code %s', exit_code)
 				state_model.process = None
 			is_alive_thread = threading.Thread(target=check_if_alive)
 			is_alive_thread.daemon = True
 			is_alive_thread.start()
+
+	@contextlib.contextmanager
+	def _with_status(self, message):
+		state_model = self._state_model
+
+		state_model.status, previous_message = message, state_model.status
+		yield
+		state_model.status = previous_message
 
 	@contextlib.contextmanager
 	def _with_data(self):
