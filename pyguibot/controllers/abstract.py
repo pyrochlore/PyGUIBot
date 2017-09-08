@@ -111,6 +111,9 @@ class AbstractController(object):
 							self._key_sequence[:] = []
 
 				elif event_type.startswith('mouse_'):
+					# Waits some seconds (to allow user to invoke menu or something else)
+					time.sleep(2.)
+
 					# Makes screen shot
 					Screen.get_screenshot().save(pattern_path)
 
