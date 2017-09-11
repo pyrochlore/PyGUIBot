@@ -345,11 +345,15 @@ class QtGuiController(AbstractController):
 			logging.getLogger(__name__).warning('Path is not selected but console is attached')
 		elif state_model.src_path is not None and not os.path.isdir(os.path.dirname(state_model.src_path)):
 			logging.getLogger(__name__).warning('Path is selected but directory not exists: %s', os.path.dirname(state_model.src_path))
+			if state_model.autoexit:
+				QtWidgets.QApplication.exit(1)
 		else:
 			if state_model.src_path is not None and not os.path.isfile(state_model.src_path):
 				logging.getLogger(__name__).warning('Path is selected but file not exists: %s, will be created.', state_model.src_path)
-				with open(state_model.src_path, 'w') as src:
-					pass
+				if state_model.autoexit:
+					QtWidgets.QApplication.exit(1)
+				# with open(state_model.src_path, 'w') as src:
+				#     pass
 			with open(state_model.src_path) if state_model.src_path is not None else sys.stdin as src:
 				for line in (x.rstrip() for x in src):
 
