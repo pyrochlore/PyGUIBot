@@ -52,7 +52,6 @@ class QtGuiController(AbstractController):
 		# Models
 		self._state_model = state_model = _State()
 		state_model.src_path = path
-		print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'path=', path; sys.stderr.flush()  # FIXME: must be removed/commented
 		state_model.src_path_events_observer = None
 		state_model.verbose = verbose
 		state_model.process = None
