@@ -7,6 +7,7 @@
 from __future__ import division, unicode_literals
 import ast
 import contextlib
+import datetime
 import logging
 import os
 import pipes
@@ -484,7 +485,7 @@ class QtGuiController(AbstractController):
 				#     line = process.stdout.readline().rstrip()
 				for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
 					# logging.getLogger(__name__).debug('STDOUT: %s', line)
-					print >>sys.stdout, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), line; sys.stdout.flush()
+					print >>sys.stdout, datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], '{0.f_code.co_filename}:{0.f_lineno}'.format(sys._getframe()), line; sys.stdout.flush()
 				logging.getLogger(__name__).debug('Subprocess stdout loop is closed')
 			stdout_thread = threading.Thread(target=read_stdout)
 			stdout_thread.daemon = True
