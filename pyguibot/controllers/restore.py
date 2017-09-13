@@ -145,7 +145,7 @@ class RestoreController(AbstractController):
 									paths=patterns_paths,
 									timeout=float(event.get('timeout', 10.)),
 									delay=float(event.get('delay', 2.)),
-									threshold=float(event.get('threshold', .99)),
+									threshold=float(event.get('threshold', .97)),
 								)
 							except Exception as e:
 								raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(patterns_paths=patterns_paths))), sys.exc_info()[2]
