@@ -145,7 +145,7 @@ class RestoreController(AbstractController):
 									paths=patterns_paths,
 									timeout=float(event.get('timeout', 10.)),
 									delay=float(event.get('delay', 2.)),
-									threshold=float(event.get('threshold', .94)),
+									threshold=float(event.get('threshold', .99)),
 								)
 							except Exception as e:
 								raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(patterns_paths=patterns_paths))), sys.exc_info()[2]
@@ -264,13 +264,16 @@ class RestoreController(AbstractController):
 			# Converts PIL image to numpy array
 			screenshot_array = self._convert_image_to_array(screenshot)
 
-			max_correlations = []
+			results = []
 			for path, pattern in zip(paths, patterns):
 				# Looks for an image pattern
-				result = cv2.matchTemplate(screenshot_array, pattern, cv2.TM_CCORR_NORMED)  # ~0.7s
-
-				min_correlation, max_correlation, min_location, max_location = cv2.minMaxLoc(result)
-				max_correlations += [max_correlation]
+				max_correlation, max_location, method = max(
+					[max_correlation, max_location, method]
+					for min_correlation, max_correlation, min_location, max_location, method in [
+							list(cv2.minMaxLoc(cv2.matchTemplate(screenshot_array, pattern, getattr(cv2, method)))) + [method] for method in ['TM_CCOEFF_NORMED', 'TM_CCORR_NORMED']
+					]
+				)  # ~0.7s for each call of "cv2.matchTemplate"
+				results += [dict(max_correlation=max_correlation, method=method)]
 				if max_correlation >= threshold:
 					x, y = max_location
 					logging.getLogger(__name__).debug('Pattern "%s" is found', path)
@@ -279,8 +282,8 @@ class RestoreController(AbstractController):
 					# cv2.rectangle(screenshot_array, (x, y), (x + width, y + height), (0, 0, 255), 1)
 			else:
 				# Prints out correlation values in order to calculate threshold value precisely
-				if any(x >= (.8 * threshold) for x in max_correlations):
-					print >>sys.stderr, 'Correlation was only %s', ' and '.join(['{:.2%}'.format(x) for x in max_correlations])
+				if any(x['max_correlation'] >= (.8 * threshold) for x in results):
+					print >>sys.stderr, 'Correlation was only %s', ' and '.join(['{max_correlation:.2%} [{method}]'.format(**x) for x in results])
 
 			# Checks if timeout reached
 			_delay = delay - (time.time() - t1)
