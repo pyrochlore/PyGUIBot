@@ -273,17 +273,17 @@ class RestoreController(AbstractController):
 							list(cv2.minMaxLoc(cv2.matchTemplate(screenshot_array, pattern, getattr(cv2, method)))) + [method] for method in ['TM_CCOEFF_NORMED', 'TM_CCORR_NORMED']
 					]
 				)  # ~0.7s for each call of "cv2.matchTemplate"
-				results += [dict(max_correlation=max_correlation, method=method)]
+				results += [dict(max_correlation=max_correlation, max_location=max_location, method=method)]
 				if max_correlation >= threshold:
 					x, y = max_location
 					logging.getLogger(__name__).debug('Pattern "%s" is found', path)
 					height, width = pattern.shape[:2]
 					return x + width // 2, y + height // 2
 					# cv2.rectangle(screenshot_array, (x, y), (x + width, y + height), (0, 0, 255), 1)
-			else:
-				# Prints out correlation values in order to calculate threshold value precisely
-				if any(x['max_correlation'] >= (.8 * threshold) for x in results):
-					print >>sys.stderr, 'Correlation was only %s', ' and '.join(['{max_correlation:.2%} [{method}]'.format(**x) for x in results])
+			# else:
+			# Prints out correlation values in order to calculate threshold value precisely
+			if any(x['max_correlation'] >= (.8 * threshold) for x in results):
+				print >>sys.stderr, 'Correlation was %s', ', '.join(['{max_correlation:.2%} {max_location} [{method}]'.format(**x) for x in results])
 
 			# Checks if timeout reached
 			_delay = delay - (time.time() - t1)
