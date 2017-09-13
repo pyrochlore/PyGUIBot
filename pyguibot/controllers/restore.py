@@ -267,7 +267,7 @@ class RestoreController(AbstractController):
 			max_correlations = []
 			for path, pattern in zip(paths, patterns):
 				# Looks for an image pattern
-				result = cv2.matchTemplate(screenshot_array, pattern, cv2.TM_CCOEFF_NORMED)  # ~0.7s
+				result = cv2.matchTemplate(screenshot_array, pattern, cv2.TM_CCORR_NORMED)  # ~0.7s
 
 				min_correlation, max_correlation, min_location, max_location = cv2.minMaxLoc(result)
 				max_correlations += [max_correlation]
