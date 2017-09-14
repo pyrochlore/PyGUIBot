@@ -146,7 +146,7 @@ class RestoreController(AbstractController):
 									timeout=float(event.get('timeout', 10.)),
 									delay=float(event.get('delay', 2.)),
 									threshold=dict(dict(
-										TM_CCOEFF_NORMED=.97,
+										TM_CCOEFF_NORMED=.96,
 										TM_CCORR_NORMED=.999,
 									), **{
 										method: float(event[key])
