@@ -11,6 +11,7 @@ import os
 import sys
 import time
 
+# import pyautogui.screenshotUtil
 import pykeyboard
 import pymouse
 import pyscreenshot
@@ -37,7 +38,8 @@ class Screen(object):
 	def get_screenshot(cls):
 		"""Makes screenshot, returns PIL-image"""
 		screenshot = pyscreenshot.grab()  # ~1.1s
-		# screenshot = pyautogui.screenshot()
+		# screenshot = PIL.ImageGrab.grab()
+		# screenshot = pyautogui.screenshotUtil.screenshot()
 		return screenshot
 
 	def _print_backends():
