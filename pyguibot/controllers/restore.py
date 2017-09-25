@@ -162,7 +162,7 @@ class RestoreController(AbstractController):
 							time.sleep(float(event['value']))
 						elif event['type'] in ('jump', 'break'):
 							time.sleep(.2)
-							if event['value'][:1] in '-+':
+							if str(event['value'])[:1] in '-+':
 								event['level'] += 1 + int(event['value'])
 							else:
 								event['level'] = int(event['value'])
