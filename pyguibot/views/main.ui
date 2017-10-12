@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>569</width>
-    <height>348</height>
+    <width>445</width>
+    <height>281</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -41,10 +41,18 @@
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
+      <property name="wordWrap">
+       <bool>true</bool>
+      </property>
      </widget>
     </item>
     <item>
      <widget class="QTreeWidget" name="commands_tree">
+      <property name="font">
+       <font>
+        <pointsize>8</pointsize>
+       </font>
+      </property>
       <property name="acceptDrops">
        <bool>true</bool>
       </property>
@@ -146,7 +154,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>569</width>
+     <width>445</width>
      <height>19</height>
     </rect>
    </property>

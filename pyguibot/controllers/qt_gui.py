@@ -62,9 +62,9 @@ class QtGuiController(AbstractController):
 		state_model.status = 'Click "Play" to (re)run or "Record" to add new events...'
 
 		self._state_colors = dict(ready=None, current='#fc0', completed='#6c6', failed='#f00')
-		self._level_separator = '⎯'
-		self._level_passive_point = '◯'
-		self._level_active_point = '⬤'
+		self._level_separator = ''  # Can be ['⎯']
+		self._level_passive_point = '◯'  # Can be ['◯']
+		self._level_active_point = '⬤'  # Can be ['⬤']
 
 		self._drag_entries = None
 		self._drag_from = None
