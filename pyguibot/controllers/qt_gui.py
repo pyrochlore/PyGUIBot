@@ -169,6 +169,40 @@ class QtGuiController(AbstractController):
 			self.__view.close()
 		elif event.key() == QtCore.Qt.Key_Delete:
 			self.__on_delete_pressed()
+		elif event.modifiers() == (QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier) and event.key() == QtCore.Qt.Key_I:
+			QtCore.pyqtRemoveInputHook()
+			import ipdb
+			ipdb.set_trace()
+		# Shortcuts {
+		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_O:
+			self.__on_open_triggered(event)
+		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_P:
+			self.__on_run_triggered(event)
+		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_S:
+			self.__on_stop_triggered(event)
+		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_R:
+			self.__on_record_triggered(event)
+		elif event.modifiers() & QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_Less:
+			self.__on_shift_left_triggered(event)
+		elif event.modifiers() & QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_Greater:
+			self.__on_shift_right_triggered(event)
+		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_U:
+			self.__on_uncomment_triggered(event)
+		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_C:
+			self.__on_comment_triggered(event)
+		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_E:
+			self.__on_split_triggered(event)
+		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_J:
+			self.__on_join_triggered(event)
+		# }
+		else:
+			logging.getLogger(__name__).warning(
+				'Key %s%s%s%s has no handler',
+				'Ctrl+' if QtCore.Qt.ControlModifier & event.modifiers() else '',
+				'Alt+' if QtCore.Qt.AltModifier & event.modifiers() else '',
+				'Shift+' if QtCore.Qt.ShiftModifier & event.modifiers() else '',
+				next(key for key in dir(QtCore.Qt) if key.startswith('Key_') for value in [getattr(QtCore.Qt, key)] if value == event.key()),
+			)
 
 	def __on_delete_pressed(self):
 		view = self.__view
