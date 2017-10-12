@@ -5,6 +5,10 @@
 # (c) gehrmann
 
 from __future__ import division
+
+__doc__ = """
+"""
+
 import datetime
 import logging
 import multiprocessing
@@ -35,13 +39,12 @@ if __name__ == '__main__':
 logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 from controllers.abstract import AbstractController
+from helpers.timer import Timer
 from models.devices import (
 	Keyboard,
 	Mouse,
 	Screen,
 )
-
-__doc__ = """"""
 
 
 class RestoreController(AbstractController):
@@ -275,9 +278,11 @@ class RestoreController(AbstractController):
 
 			# Makes screen shot
 			logging.getLogger(__name__).debug('Capturing screen shot...')
-			screenshot = Screen.get_screenshot()
+			with Timer('capturing screenshot'):
+				screenshot = Screen.get_screenshot()
 
 			# Converts PIL image to numpy array
+			# with Timer('converting screenshot to numpy-array'):
 			screenshot_array = self._convert_image_to_array(screenshot)
 
 			patterns_correlations = []
@@ -285,6 +290,7 @@ class RestoreController(AbstractController):
 				# Looks for an image pattern
 				height, width = pattern.shape[:2]
 				methods = threshold.keys()
+				# with Timer('finding correlations'):
 				correlations = [
 					dict([['method', method]] + zip(
 						('min_correlation', 'max_correlation', 'min_location', 'max_location'),
@@ -367,6 +373,7 @@ class RestoreController(AbstractController):
 	def _convert_image_to_array(image):
 		"""Converts PIL image to numpy array, returns array"""
 		array = numpy.array(image)  # Convert to numpy array
+		# array = numpy.array(image, dtype='uint8')  # Convert to numpy array
 		array = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)  # Revert color order: RGB -> BGR
 		return array
 

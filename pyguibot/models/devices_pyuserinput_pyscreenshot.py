@@ -33,13 +33,23 @@ if __name__ == '__main__':
 __doc__ = """"""
 
 
+# Detects if wxWidgets are installed
+if 'wx' not in pyscreenshot.backends():
+	logging.getLogger(__name__).warning('WX not found in pyscreenshot.backends(). Install it please, because it is the fastest one!')
+
+
 class Screen(object):
 	@classmethod
 	def get_screenshot(cls):
 		"""Makes screenshot, returns PIL-image"""
-		screenshot = pyscreenshot.grab()  # ~1.1s
+		# screenshot = pyscreenshot.grab()  # ~1.1s
+		screenshot = pyscreenshot.grab(
+			backend='wx',  # Fastest backend, can be [ 'wx' | 'pygtk' | 'pyqt' | 'scrot' | 'imagemagick' | ... ]
+			childprocess=False,  # Allows not to re-initialize wx.App
+		)
 		# screenshot = PIL.ImageGrab.grab()
 		# screenshot = pyautogui.screenshotUtil.screenshot()
+
 		return screenshot
 
 	def _print_backends():

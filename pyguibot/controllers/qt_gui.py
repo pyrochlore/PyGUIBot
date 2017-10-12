@@ -5,6 +5,15 @@
 # (c) gehrmann (gehrmann.mail@gmail.com)
 
 from __future__ import division, unicode_literals
+
+__doc__ = """
+
+Todo
+----
+
+
+"""
+
 import ast
 import contextlib
 import datetime

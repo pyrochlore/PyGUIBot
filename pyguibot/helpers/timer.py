@@ -48,12 +48,13 @@ class Timer(object):
 		self._stop_time = None
 
 	def __enter__(self):
+		self._module = sys._getframe(1).f_globals['__name__']
 		self._start_time = time.time()
 		return self
 
 	def __exit__(self, exc_type, exc_value, traceback):
 		self._stop_time = time.time()
-		if self._show and logging.getLogger(__name__).level in (logging.DEBUG, logging.INFO):
+		if self._show and logging.getLogger(self._module).level in (logging.DEBUG, logging.INFO):
 			print >>sys.stderr, datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe().f_back), str(self) + ' - took ' + self._fmt; sys.stderr.flush()  # FIXME: must be removed
 
 	def __str__(self):
