@@ -459,7 +459,7 @@ class QtGuiController(AbstractController):
 			self._reset_tree_entries_states()
 
 			command = [os.path.join(sys.path[0], './controllers/restore.py')]
-			for index in range(state_model.verbose or 0):
+			for index in range({logging.INFO: 1, logging.DEBUG: 2}.get(logging.getLogger(__name__).level, 0)):
 				command += ['-v']
 			if state_model.src_path is not None:
 				command += ['--path', pipes.quote(state_model.src_path)]
@@ -724,9 +724,6 @@ def run_init():
 	parser.add_argument('-d', '--disable-observer', action='store_true', help='Disables observing data for external updates and reloading them')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
 
-	# Raises verbosity level for script (through arguments -v and -vv)
-	logging.getLogger(__name__).setLevel((logging.WARNING, logging.INFO, logging.DEBUG)[min(kwargs['verbose'] or 0, 2)])
-
 	sys.exit(QtGuiController(**kwargs).loop())
 
 
@@ -734,7 +731,11 @@ def main():
 	import argparse
 	parser = argparse.ArgumentParser(add_help=False)
 	parser.add_argument('-r', '--run-function', default='init', choices=[k[len('run_'):] for k in globals() if k.startswith('run_')], help='Function to run (without "run_"-prefix)')
+	parser.add_argument('-v', '--verbose', action='count', help='Raises logging level')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
+
+	# Raises verbosity level for script (through arguments -v and -vv)
+	logging.getLogger(__name__).setLevel((logging.WARNING, logging.INFO, logging.DEBUG)[min(kwargs['verbose'] or 0, 2)])
 
 	globals()['run_' + kwargs['run_function']]()
 

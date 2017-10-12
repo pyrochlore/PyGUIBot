@@ -47,7 +47,7 @@ __doc__ = """"""
 class RestoreController(AbstractController):
 	""""""
 
-	def __init__(self, path, verbose, from_line, to_line, with_screencast):
+	def __init__(self, path, verbose=0, from_line=None, to_line=None, with_screencast=False):
 		self._src_path = src_path = path
 		self._tmp_path = tmp_path = os.path.join(os.path.dirname(src_path) if src_path is not None else '.', '.tmp')
 
@@ -402,14 +402,10 @@ def run_init():
 	import argparse
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('-p', '--path', required=bool(sys.stdin.isatty()), help='Directory path where to load tests')
-	parser.add_argument('-v', '--verbose', action='count', help='Raises logging level')
 	parser.add_argument('-f', '--from-line', type=int, help='Line to begin from')
 	parser.add_argument('-t', '--to-line', type=int, help='Line to end to')
 	parser.add_argument('-s', '--with-screencast', action='store_true', help='Writes a video screencast')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
-
-	# Raises verbosity level for script (through arguments -v and -vv)
-	logging.getLogger(__name__).setLevel((logging.WARNING, logging.INFO, logging.DEBUG)[min(kwargs['verbose'] or 0, 2)])
 
 	RestoreController(**kwargs)
 
@@ -418,7 +414,11 @@ def main():
 	import argparse
 	parser = argparse.ArgumentParser(add_help=False)
 	parser.add_argument('-r', '--run-function', default='init', choices=[k[len('run_'):] for k in globals() if k.startswith('run_')], help='Function to run (without "run_"-prefix)')
+	parser.add_argument('-v', '--verbose', action='count', help='Raises logging level')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
+
+	# Raises verbosity level for script (through arguments -v and -vv)
+	logging.getLogger(__name__).setLevel((logging.WARNING, logging.INFO, logging.DEBUG)[min(kwargs['verbose'] or 0, 2)])
 
 	globals()['run_' + kwargs['run_function']]()
 
