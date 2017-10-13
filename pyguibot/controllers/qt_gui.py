@@ -726,12 +726,13 @@ class QtGuiController(AbstractController):
 			if indices:
 				# Combines values
 				dst_event = dict()
-				for src_event in [self._restore(lines[index].rstrip('\n')) for index in indices]:
+				for src_event in [self._restore(lines[index].rstrip('\n')) for index in sorted(indices)]:
 					for key, value in src_event.items():
 						if value.__class__ == list:
 							dst_event.setdefault(key, []).extend(value)
 						else:
-							dst_event[key] = value
+							# dst_event[key] = value
+							dst_event.setdefault(key, value)
 
 				# Replaces first line
 				lines[min(indices)] = self._dump(dst_event) + '\n'
