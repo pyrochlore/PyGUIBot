@@ -171,11 +171,14 @@ class RestoreController(AbstractController):
 								event['level'] = int(event['value'])
 							raise LookupError('Message "{}", {event[type]}ing to {event[level]}.'.format(event.get('message', 'No message'), **locals()))
 						elif event['type'] == 'shell_command':
-							try:
-								result = subprocess.check_output(event['value'], shell=True)
-							except subprocess.CalledProcessError as e:
-								raise LookupError(e)
-							logging.getLogger(__name__).debug('Result: %s', result.rstrip())
+							if event.get('wait', True):
+								try:
+									result = subprocess.check_output(event['value'], shell=True)
+								except subprocess.CalledProcessError as e:
+									raise LookupError(e)
+								logging.getLogger(__name__).debug('Result: %s', result.rstrip())
+							else:
+								subprocess.Popen(event['value'], shell=True)
 						elif event['type'] == 'keyboard_press':
 							time.sleep(.2)
 							self._tap(event['value'], delay=.08)
