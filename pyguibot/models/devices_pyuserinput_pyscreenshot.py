@@ -14,7 +14,7 @@ import time
 # import pyautogui.screenshotUtil
 import pykeyboard
 import pymouse
-import pyscreenshot
+# import pyscreenshot
 
 if __name__ == '__main__':
 	# Set utf-8 (instead of latin1) as default encoding for every IO
@@ -33,9 +33,9 @@ if __name__ == '__main__':
 __doc__ = """"""
 
 
-# Detects if wxWidgets are installed
-if 'wx' not in pyscreenshot.backends():
-	logging.getLogger(__name__).warning('WX not found in pyscreenshot.backends(). Install it please, because it is the fastest one!')
+# # Detects if wxWidgets are installed
+# if 'wx' not in pyscreenshot.backends():
+#     logging.getLogger(__name__).warning('WX not found in pyscreenshot.backends(). Install it please, because it is the fastest one!')
 
 
 class Screen(object):
@@ -43,18 +43,37 @@ class Screen(object):
 	def get_screenshot(cls):
 		"""Makes screenshot, returns PIL-image"""
 		# screenshot = pyscreenshot.grab()  # ~1.1s
-		screenshot = pyscreenshot.grab(
-			backend='wx',  # Fastest backend, can be [ 'wx' | 'pygtk' | 'pyqt' | 'scrot' | 'imagemagick' | ... ]
-			childprocess=False,  # Allows not to re-initialize wx.App
-		)
 		# screenshot = PIL.ImageGrab.grab()
 		# screenshot = pyautogui.screenshotUtil.screenshot()
+		# screenshot = pyscreenshot.grab(
+		#     backend='wx',  # Fastest backend, can be [ 'wx' | 'pygtk' | 'pyqt' | 'scrot' | 'imagemagick' | ... ]
+		#     childprocess=False,  # Allows not to re-initialize wx.App
+		# )
+
+		import wx
+		from PIL import Image as PIL_Image
+		if not hasattr(cls, '_wx_application'):
+			cls._wx_application = wx.App()
+		screen = wx.ScreenDC()
+		size = screen.GetSize()
+		_bitmap = wx.EmptyBitmap(size[0], size[1])
+		_memory = wx.MemoryDC(_bitmap)
+		_memory.Blit(0, 0, size[0], size[1], screen, 0, 0)
+		del _memory
+		_wx_image = wx.ImageFromBitmap(_bitmap)
+		screenshot = PIL_Image.new('RGB', (_wx_image.GetWidth(), _wx_image.GetHeight()))
+		if hasattr(PIL_Image, 'frombytes'):
+			# for Pillow
+			screenshot.frombytes(_wx_image.GetData())
+		else:
+			# for PIL
+			screenshot.fromstring(_wx_image.GetData())
 
 		return screenshot
 
-	def _print_backends():
-		"""Prints out availables backends"""
-		print pyscreenshot.backends()
+	# def _print_backends():
+	#     """Prints out availables backends"""
+	#     print pyscreenshot.backends()
 
 
 class Keyboard(pykeyboard.PyKeyboard):
