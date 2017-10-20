@@ -55,11 +55,11 @@ class _State(ObservableAttrDict):
 	pass
 
 
-class QtGuiController(AbstractController):
-	def __init__(self, path, verbose, autorun, autoexit, geometry, with_screencast, disable_observer):
+class MainController(AbstractController):
+	def __init__(self, path, verbose, autorun, autoexit, geometry, with_screencast, disable_observer, shell_command_prefix):
 		self._app = app = QtWidgets.QApplication(sys.argv)
 
-		# Models
+		"""Models"""
 		self._state_model = state_model = _State()
 		state_model.src_path = path
 		state_model.src_path_events_observer = None
@@ -68,6 +68,7 @@ class QtGuiController(AbstractController):
 		state_model.autoexit = autoexit
 		state_model.with_screencast = with_screencast
 		state_model.disable_observer = disable_observer
+		state_model.shell_command_prefix = shell_command_prefix
 		state_model.status = 'Click "Play" to (re)run or "Record" to add new events...'
 
 		self._state_colors = dict(ready=None, current='#fc0', completed='#6c6', failed='#f00')
@@ -176,13 +177,13 @@ class QtGuiController(AbstractController):
 	def __on_key_pressed(self, event):
 		if event.key() == QtCore.Qt.Key_Escape:
 			self.__view.close()
-		elif event.key() == QtCore.Qt.Key_Delete:
-			self.__on_delete_pressed()
 		elif event.modifiers() == (QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier) and event.key() == QtCore.Qt.Key_I:
 			QtCore.pyqtRemoveInputHook()
 			import ipdb
 			ipdb.set_trace()
 		# Shortcuts {
+		elif event.key() == QtCore.Qt.Key_Delete:
+			self.__on_delete_pressed()
 		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_O:
 			self.__on_open_triggered(event)
 		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_P:
@@ -512,6 +513,8 @@ class QtGuiController(AbstractController):
 				command += ['--to-line', to_line]
 			if state_model.with_screencast:
 				command += ['--with-screencast']
+			if state_model.shell_command_prefix is not None:
+				command += ['--shell-command-prefix', pipes.quote(state_model.shell_command_prefix)]
 			logging.getLogger(__name__).info('Running subprocess: %s', command)
 
 			state_model.process = process = subprocess.Popen(
@@ -766,9 +769,12 @@ def run_init():
 	parser.add_argument('-e', '--autoexit', action='store_true', help='Exits automatically if test terminates')
 	parser.add_argument('-s', '--with-screencast', action='store_true', help='Writes a video screencast')
 	parser.add_argument('-d', '--disable-observer', action='store_true', help='Disables observing data for external updates and reloading them')
+	parser.add_argument('--shell-command-prefix', default='', help='Adds prefix to every event named "shell_command"')
+	parser.add_argument('PATH', nargs='?', help='Directory path where to load tests')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
+	kwargs['path'] = next(x for x in [kwargs['path']] + [kwargs.pop('PATH')] if x is not None)  # Mixes positional argument "PATH" into named argument "path"
 
-	sys.exit(QtGuiController(**kwargs).loop())
+	sys.exit(MainController(**kwargs).loop())
 
 
 def main():

@@ -50,7 +50,7 @@ from models.devices import (
 class RestoreController(AbstractController):
 	""""""
 
-	def __init__(self, path, verbose=0, from_line=None, to_line=None, with_screencast=False):
+	def __init__(self, path, verbose=0, from_line=None, to_line=None, with_screencast=False, shell_command_prefix=''):
 		self._src_path = src_path = path
 		self._tmp_path = tmp_path = os.path.join(os.path.dirname(src_path) if src_path is not None else '.', '.tmp')
 
@@ -182,14 +182,16 @@ class RestoreController(AbstractController):
 								event['level'] = int(event['value'])
 							raise LookupError('Message "{}", {event[type]}ing to {event[level]}.'.format(event.get('message', 'No message'), **locals()))
 						elif event['type'] == 'shell_command':
+							shell_command = shell_command_prefix + event['value']
+							logging.getLogger(__name__).debug('Command: %s', shell_command)
 							if event.get('wait', True):
 								try:
-									result = subprocess.check_output(event['value'], shell=True)
+									result = subprocess.check_output(shell_command, shell=True)
 								except subprocess.CalledProcessError as e:
 									raise LookupError(e)
 								logging.getLogger(__name__).debug('Result: %s', result.rstrip())
 							else:
-								subprocess.Popen(event['value'], shell=True)
+								subprocess.Popen(shell_command, shell=True)
 						elif event['type'] == 'keyboard_press':
 							time.sleep(.2)
 							self._tap(event['value'], delay=.08)
@@ -426,6 +428,7 @@ def run_init():
 	parser.add_argument('-f', '--from-line', type=int, help='Line to begin from')
 	parser.add_argument('-t', '--to-line', type=int, help='Line to end to')
 	parser.add_argument('-s', '--with-screencast', action='store_true', help='Writes a video screencast')
+	parser.add_argument('--shell-command-prefix', default='', help='Adds prefix to every event named "shell_command"')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
 
 	RestoreController(**kwargs)
