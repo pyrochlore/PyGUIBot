@@ -110,7 +110,6 @@ class RestoreController(AbstractController):
 
 		try:
 			with open(src_path) if src_path is not None else sys.stdin as src:
-				pattern_x, pattern_y = 0, 0
 				skip_level = None
 
 				for index, line in enumerate(x.rstrip() for x in src):
@@ -135,6 +134,9 @@ class RestoreController(AbstractController):
 					try:
 						print 'Doing step #{line_number}'.format(line_number=(index + 1))
 						print >>sys.stderr, 'Status={}'.format(dict(index=index, code='current'))
+
+						event_x, event_y = Mouse.position()
+
 						if 'patterns' in event:
 							# Delays before screen-shot
 							waiting_before_screenshot_time = 2.
@@ -144,7 +146,7 @@ class RestoreController(AbstractController):
 							# Looks for image patterns on the screen
 							try:
 								patterns_paths = [os.path.join(os.path.dirname(self._src_path) if self._src_path is not None else '.', x) for x in event['patterns']]
-								pattern_x, pattern_y = self._locate_image_patterns(
+								event_x, event_y = self._locate_image_patterns(
 									paths=patterns_paths,
 									timeout=float(event.get('timeout', 10.)),
 									delay=float(event.get('delay', 2.)),
@@ -158,6 +160,15 @@ class RestoreController(AbstractController):
 								)
 							except Exception as e:
 								raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(patterns_paths=patterns_paths))), sys.exc_info()[2]
+
+						# Shifts coordinates if 'x' or 'y' found in event
+						event_x, event_y = [
+							(x if xx[:1] in '+-' else 0) + int(xx)
+							for x, xx in zip(
+									(event_x, event_y),
+									(event.get('x', '+0'), event.get('y', '+0')),
+							)
+						]
 
 						logging.getLogger(__name__).debug('Making event %s', event['type'])
 
@@ -193,42 +204,42 @@ class RestoreController(AbstractController):
 							Keyboard.type(event['value'], interval=.12)
 						elif event['type'] == 'mouse_move':
 							time.sleep(.2)
-							Mouse.slide(pattern_x, pattern_y)
+							Mouse.slide(event_x, event_y)
 							time.sleep(.2)
 						elif event['type'] == 'mouse_press':
 							time.sleep(.2)
-							Mouse.slide(pattern_x, pattern_y)
+							Mouse.slide(event_x, event_y)
 							time.sleep(.2)
-							Mouse.press(pattern_x, pattern_y)
+							Mouse.press(event_x, event_y)
 							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_release':
 							time.sleep(.2)
-							Mouse.slide(pattern_x, pattern_y)
+							Mouse.slide(event_x, event_y)
 							time.sleep(.2)
-							Mouse.release(pattern_x, pattern_y)
+							Mouse.release(event_x, event_y)
 							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_click':
 							time.sleep(.2)
-							Mouse.slide(pattern_x, pattern_y)
+							Mouse.slide(event_x, event_y)
 							time.sleep(.2)
-							Mouse.click(pattern_x, pattern_y, button=1, count=1)
+							Mouse.click(event_x, event_y, button=1, count=1)
 							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_double_click':
-							Mouse.slide(pattern_x, pattern_y)
+							Mouse.slide(event_x, event_y)
 							time.sleep(.2)
-							Mouse.click(pattern_x, pattern_y, button=1, count=1)
+							Mouse.click(event_x, event_y, button=1, count=1)
 							time.sleep(1.)
-							Mouse.click(pattern_x, pattern_y, button=1, count=2)
+							Mouse.click(event_x, event_y, button=1, count=2)
 							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_right_click':
-							Mouse.slide(pattern_x, pattern_y)
+							Mouse.slide(event_x, event_y)
 							time.sleep(.2)
-							Mouse.click(pattern_x, pattern_y, button=2, count=1)
+							Mouse.click(event_x, event_y, button=2, count=1)
 							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_scroll':
-							Mouse.slide(pattern_x, pattern_y)
+							Mouse.slide(event_x, event_y)
 							time.sleep(.2)
-							Mouse.scroll(pattern_x, pattern_y)
+							Mouse.scroll(event_x, event_y)
 							time.sleep(.2)  # Waits till reaction is shown
 						print >>sys.stderr, 'Status={}'.format(dict(index=index, code='completed'))
 

@@ -125,6 +125,11 @@ class Mouse(pymouse.PyMouse):
 		self._delay = delay
 
 	@classmethod
+	def position(cls):
+		self = cls._get_instance()
+		return super(Mouse, self).position()
+
+	@classmethod
 	def press(cls, x, y, button=1):
 		self = cls._get_instance()
 		super(Mouse, self).press(x, y, button)
