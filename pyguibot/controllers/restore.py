@@ -223,7 +223,7 @@ class RestoreController(AbstractController):
 						elif event['type'] == 'mouse_click':
 							time.sleep(.2)
 							Mouse.slide(event_x, event_y)
-							time.sleep(.2)
+							time.sleep(.5)
 							Mouse.click(event_x, event_y, button=1, count=1)
 							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_double_click':
