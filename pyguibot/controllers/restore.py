@@ -283,6 +283,7 @@ class RestoreController(AbstractController):
 		logging.getLogger(__name__).debug('Looking for patterns "%s"...', paths)
 
 		patterns = [self._load_array(x) for x in paths]
+		_timeout = timeout
 
 		while True:
 			t1 = time.time()
@@ -352,8 +353,8 @@ class RestoreController(AbstractController):
 			else:
 				logging.getLogger(__name__).warning('Screenshot overtime %s', -_delay)
 			t2 = time.time()
-			timeout -= t2 - t1
-			if timeout <= 0:
+			_timeout -= t2 - t1
+			if _timeout <= 0:
 				# if logging.getLevelName(logging.getLogger(__name__).getEffectiveLevel()) in ('DEBUG', 'INFO'):
 				if True:
 					# Stores failed patterns
@@ -371,7 +372,7 @@ class RestoreController(AbstractController):
 					# cv2.imshow(window_title, result)
 					# cv2.waitKey(0)
 					# cv2.destroyAllWindows()
-				raise LookupError('Timeout is reached. Patterns "{}" are not found.'.format(paths))
+				raise LookupError('Timeout is reached ({}). Patterns "{}" are not found.'.format(timeout, paths))
 			continue
 
 	@staticmethod
