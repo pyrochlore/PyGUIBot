@@ -546,10 +546,11 @@ class MainController(AbstractController):
 						if value.startswith('{'):
 							status = ast.literal_eval(value)
 							entry = tree.topLevelItem(int(status['index']))
-							entry.setText(0, '' if status['code'] == 'current' else '')
-							entry.setForeground(1, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-							entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-							entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+							if status.get('code', False):
+								entry.setText(0, '' if status['code'] == 'current' else '')
+								entry.setForeground(1, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+								entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+								entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
 							tree.scrollToItem(entry, tree.EnsureVisible)
 							tree.viewport().update()  # Force update (fix for Qt5)
 					elif '[DEBUG]  ' in line:
@@ -628,10 +629,11 @@ class MainController(AbstractController):
 						if value.startswith('{'):
 							status = ast.literal_eval(value)
 							entry = tree.topLevelItem(int(status['index']))
-							entry.setText(0, '' if status['code'] == 'current' else '')
-							entry.setForeground(1, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-							entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-							entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+							if status.get('code', False):
+								entry.setText(0, '' if status['code'] == 'current' else '')
+								entry.setForeground(1, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+								entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+								entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
 							tree.scrollToItem(entry, tree.EnsureVisible)
 							tree.viewport().update()  # Force update (fix for Qt5)
 					elif '[DEBUG]  ' in line:

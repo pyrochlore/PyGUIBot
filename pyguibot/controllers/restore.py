@@ -20,6 +20,11 @@ import subprocess
 import sys
 import threading
 import time
+try:
+	import monotonic
+	time.monotonic = monotonic.monotonic
+except ImportError:
+	time.monotonic = time.time
 
 import cv2
 
@@ -122,18 +127,22 @@ class RestoreController(AbstractController):
 
 					# Skips empty lines and comments
 					if 'comments' in event:  # If line is commented
+						print >>sys.stderr, 'Status={}'.format(dict(index=index, code='')); sys.stderr.flush()
 						continue
 
 					# Skips level with exception occurred
+					logging.getLogger(__name__).debug('level: %s', event['level'])
 					if skip_level is not None:
+						logging.getLogger(__name__).debug('skip_level: %s', skip_level)
 						if event['level'] >= skip_level:
+							print >>sys.stderr, 'Status={}'.format(dict(index=index, code='')); sys.stderr.flush()
 							continue
 						else:
 							skip_level = None
 
 					try:
-						print 'Doing step #{line_number}'.format(line_number=(index + 1))
-						print >>sys.stderr, 'Status={}'.format(dict(index=index, code='current'))
+						print >>sys.stderr, 'Status={}'.format(dict(index=index, code='current')); sys.stderr.flush()
+						print 'Doing step #{line_number}'.format(line_number=(index + 1)); sys.stdout.flush()
 
 						event_x, event_y = Mouse.position()
 
@@ -180,18 +189,13 @@ class RestoreController(AbstractController):
 								event['level'] += 1 + int(event['value'])
 							else:
 								event['level'] = int(event['value'])
-							raise LookupError('Message "{}", {event[type]}ing to {event[level]}.'.format(event.get('message', 'No message'), **locals()))
+							raise LookupError('{type}ing to {event[level]} with message "{message}".'.format(type=event['type'].title(), message=event.get('message', 'No message'), **locals()))
 						elif event['type'] == 'shell_command':
 							shell_command = shell_command_prefix + event['value']
 							logging.getLogger(__name__).debug('Command: %s', shell_command)
+							process = subprocess.Popen(shell_command, shell=True, stdout=sys.stdout, stderr=sys.stderr)
 							if event.get('wait', True):
-								try:
-									result = subprocess.check_output(shell_command, shell=True)
-								except subprocess.CalledProcessError as e:
-									raise LookupError(e)
-								logging.getLogger(__name__).debug('Result: %s', result.rstrip())
-							else:
-								subprocess.Popen(shell_command, shell=True)
+								process.wait()
 						elif event['type'] == 'keyboard_press':
 							time.sleep(.2)
 							self._tap(event['value'], delay=.08)
@@ -203,7 +207,15 @@ class RestoreController(AbstractController):
 							self._tap(event['value'], delay=.08)
 						elif event['type'] == 'keyboard_type':
 							time.sleep(.2)
-							Keyboard.type(event['value'], interval=.12)
+							Keyboard.type(event['value'], interval=.35)  # Mistypes
+							# print >>sys.stderr, 'event["value"]=', event["value"]; sys.stderr.flush()  # FIXME: must be removed/commented
+							# for character in event['value']:
+							#     Keyboard.press(character)
+							#     print >>sys.stderr, '{} pressed'.format(character); sys.stderr.flush()  # FIXME: must be removed/commented
+							#     time.sleep(.25)
+							#     Keyboard.release(character)
+							#     print >>sys.stderr, '{} released'.format(character); sys.stderr.flush()  # FIXME: must be removed/commented
+							#     time.sleep(.25)
 						elif event['type'] == 'mouse_move':
 							time.sleep(.2)
 							Mouse.slide(event_x, event_y)
@@ -243,20 +255,23 @@ class RestoreController(AbstractController):
 							time.sleep(.2)
 							Mouse.scroll(event_x, event_y)
 							time.sleep(.2)  # Waits till reaction is shown
-						print >>sys.stderr, 'Status={}'.format(dict(index=index, code='completed'))
+
+						print >>sys.stderr, 'Status={}'.format(dict(index=index, code='completed')); sys.stderr.flush()
 
 					except LookupError as e:
 						print >>sys.stderr, 'Status={}'.format(dict(index=index, code=(
 							'completed' if event['type'] == 'jump' else 'failed'
-						)))
+						))); sys.stderr.flush()
 						if event['level'] > 0:
 							logging.getLogger(__name__).debug('Skipping level %s for %s', event['level'], event)
 							skip_level = event['level']
 						elif event['type'] == 'jump':
-							print e
+							print repr(e); sys.stdout.flush()
 							break
 						else:
-							raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(line=index, event=event))), sys.exc_info()[2]
+							# raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(line=index, event=event))), sys.exc_info()[2]
+							print >>sys.stderr, repr(e); sys.stderr.flush()
+							sys.exit(1)
 
 		except KeyboardInterrupt:
 			pass
@@ -286,7 +301,7 @@ class RestoreController(AbstractController):
 		_timeout = timeout
 
 		while True:
-			t1 = time.time()
+			t1 = time.monotonic()
 
 			# Removes previous temporary images
 			_path, _directories, _files = next(os.walk(self._tmp_path))
@@ -321,7 +336,7 @@ class RestoreController(AbstractController):
 				if any(x['max_correlation'] >= (.8 * threshold[x['method']]) for x in correlations):
 					print >>sys.stderr, 'Correlation:', ', '.join([
 						'{max_correlation:.1%} for {method} {max_location}'.format(**x) for x in sorted(correlations, key=lambda x: (x['method']))
-					])
+					]); sys.stderr.flush()
 					for correlation in correlations:
 						if correlation['max_correlation'] >= (.8 * threshold[correlation['method']]):
 							self._save_array(
@@ -341,19 +356,19 @@ class RestoreController(AbstractController):
 			# else:
 			# Prints out correlation values in order to calculate threshold value precisely
 			# if any(xx['max_correlation'] >= (.8 * threshold[xx['method']]) for x in patterns_correlations for xx in x):
-			#     print >>sys.stderr, 'Correlation:', ', '.join(['{max_correlation:.1%} for {method} {max_location}'.format(**xx) for x in patterns_correlations for xx in x])
+			#     print >>sys.stderr, 'Correlation:', ', '.join(['{max_correlation:.1%} for {method} {max_location}'.format(**xx) for x in patterns_correlations for xx in x]); sys.stderr.flush()
 			#     for method, location, correlation in [(x['method'], x['max_location']) for x in patterns_correlations for xx in x]:
 			#         print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'screenshot_array.__class__=', screenshot_array.__class__; sys.stderr.flush()  # FIXME: must be removed/commented
 			#         # self._save_array(screenshot_array[location], os.path.join(self._tmp_path, 'found_{}_{}_().png'.format(pattern_index, method, )))  # Comment it in production
 
 			# Checks if timeout reached
-			_delay = delay - (time.time() - t1)
+			_delay = delay - (time.monotonic() - t1)
 			if _delay > 0:
 				time.sleep(_delay)
 			else:
 				logging.getLogger(__name__).warning('Screenshot overtime %s', -_delay)
-			t2 = time.time()
-			_timeout -= t2 - t1
+			t2 = time.monotonic()
+			_timeout -= t2 - t1  # Attention! NTP sync follows to wrong time interval! Disable it!
 			if _timeout <= 0:
 				# if logging.getLevelName(logging.getLogger(__name__).getEffectiveLevel()) in ('DEBUG', 'INFO'):
 				if True:
