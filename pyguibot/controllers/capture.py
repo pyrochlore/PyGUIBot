@@ -66,7 +66,7 @@ class CaptureController(AbstractController):
 		"""Callback for key press/release"""
 		logging.getLogger(__name__).debug('Key %s%s', '+' if press else '-', key)
 
-		if key == 'Pause' or key == 'Break':
+		if key in ('Pause', 'Break', 'Insert'):
 			if press:
 				if key == 'Break':
 					pass
