@@ -686,10 +686,17 @@ class MainController(AbstractController):
 			lines[index:(index + count or None)] = []
 
 	def _move(self, from_index, to_index, count):
+		view = self.__view
+		tree = view.commands_tree
+
 		with self._with_data() as lines:
 			# Relocates lines
 			cut, lines[from_index:(from_index + count or None)] = lines[from_index:(from_index + count or None)], []
 			lines[to_index:to_index] = cut
+
+		entry = tree.topLevelItem(to_index)
+		tree.scrollToItem(entry, tree.EnsureVisible)
+		# tree.viewport().update()  # Force update (fix for Qt5)
 
 	def _edit(self, index):
 		state_model = self._state_model
