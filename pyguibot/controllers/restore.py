@@ -214,7 +214,7 @@ class RestoreController(AbstractController):
 							self._tap(event['value'], delay=.08)
 						elif event['type'] == 'keyboard_type':
 							time.sleep(.2)
-							Keyboard.type(event['value'], interval=.35)  # Mistypes
+							Keyboard.type(event['value'], interval=.15)
 							# print >>sys.stderr, 'event["value"]=', event["value"]; sys.stderr.flush()  # FIXME: must be removed/commented
 							# for character in event['value']:
 							#     Keyboard.press(character)
