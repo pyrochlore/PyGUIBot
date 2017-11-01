@@ -193,9 +193,16 @@ class RestoreController(AbstractController):
 						elif event['type'] == 'shell_command':
 							shell_command = shell_command_prefix + event['value']
 							logging.getLogger(__name__).debug('Command: %s', shell_command)
-							process = subprocess.Popen(shell_command, shell=True, stdout=sys.stdout, stderr=sys.stderr)
+							process = subprocess.Popen(
+								shell_command,
+								shell=True,
+								stdout=sys.stderr,  # Send STDOUT also into stderr to show everything what the command writes
+								stderr=sys.stderr,
+							)
 							if event.get('wait', True):
-								process.wait()
+								exit_code = process.wait()
+								if exit_code:
+									raise LookupError('Command was terminated with exit code {exit_code}.'.format(**locals()))
 						elif event['type'] == 'keyboard_press':
 							time.sleep(.2)
 							self._tap(event['value'], delay=.08)
