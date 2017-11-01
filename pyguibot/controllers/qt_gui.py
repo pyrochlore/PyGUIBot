@@ -697,6 +697,7 @@ class MainController(AbstractController):
 		entry = tree.topLevelItem(to_index)
 		tree.scrollToItem(entry, tree.EnsureVisible)
 		# tree.viewport().update()  # Force update (fix for Qt5)
+		entry.setSelected(True)
 
 	def _edit(self, index):
 		state_model = self._state_model
