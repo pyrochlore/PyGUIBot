@@ -57,7 +57,7 @@ class RestoreController(AbstractController):
 
 	def __init__(self, path, verbose=0, from_line=None, to_line=None, with_screencast=False, shell_command_prefix=''):
 		self._src_path = src_path = path
-		self._tmp_path = tmp_path = os.path.join(os.path.dirname(src_path) if src_path is not None else '.', '.tmp')
+		self._tmp_path = tmp_path = os.path.join(os.path.dirname(os.path.realpath(src_path)) if src_path is not None else '.', '.tmp')
 
 		# Creates temporary directory
 		if not os.path.exists(tmp_path):
@@ -154,7 +154,7 @@ class RestoreController(AbstractController):
 
 							# Looks for image patterns on the screen
 							try:
-								patterns_paths = [os.path.join(os.path.dirname(self._src_path) if self._src_path is not None else '.', x) for x in event['patterns']]
+								patterns_paths = [os.path.join(os.path.dirname(os.path.realpath(self._src_path)) if self._src_path is not None else '.', x) for x in event['patterns']]
 								event_x, event_y = self._locate_image_patterns(
 									paths=patterns_paths,
 									timeout=float(event.get('timeout', 10.)),
@@ -420,8 +420,8 @@ class RestoreController(AbstractController):
 def run_find_template():
 	"""Only for developing purposes"""
 	src_path = 'data/events.pyguibot'
-	template = RestoreController._load_array(os.path.join(os.path.dirname(src_path), '.pattern.png'))
-	screenshot = RestoreController._load_array(os.path.join(os.path.dirname(src_path), '.screenshot.png'))
+	template = RestoreController._load_array(os.path.join(os.path.dirname(os.path.realpath(src_path)), '.pattern.png'))
+	screenshot = RestoreController._load_array(os.path.join(os.path.dirname(os.path.realpath(src_path)), '.screenshot.png'))
 	threshold = .8
 
 	# template = template.astype(numpy.uint8)

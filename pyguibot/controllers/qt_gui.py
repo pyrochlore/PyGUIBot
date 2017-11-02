@@ -33,7 +33,7 @@ if __name__ == '__main__':
 	reload(sys); sys.setdefaultencoding('utf-8')
 	# Runs in application's working directory
 	sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + '/..')
-	os.chdir(sys.path[0])
+	# os.chdir(sys.path[0])
 	# Working interruption by Ctrl-C
 	signal.signal(signal.SIGINT, signal.default_int_handler)
 	# Configures logging
@@ -168,10 +168,10 @@ class MainController(AbstractController):
 	"""View's event handlers"""
 
 	def __on_close(self, event=None):
-		with open('.{}-geometry'.format(os.path.basename(sys.argv[0])), 'w') as storage:
+		with open('{}/.{}-geometry'.format(os.path.expanduser('~'), os.path.basename(sys.argv[0])), 'w') as storage:
 			print >>storage, self.__view.saveGeometry()
 
-		with open('.{}-state'.format(os.path.basename(sys.argv[0])), 'w') as storage:
+		with open('{}/.{}-state'.format(os.path.expanduser('~'), os.path.basename(sys.argv[0])), 'w') as storage:
 			print >>storage, self.__view.saveState()
 
 	def __on_key_pressed(self, event):
@@ -328,11 +328,11 @@ class MainController(AbstractController):
 
 	def __restore_window_geometry(self):
 		try:
-			with open('.{}-geometry'.format(os.path.basename(sys.argv[0]))) as storage:
+			with open('{}/.{}-geometry'.format(os.path.expanduser('~'), os.path.basename(sys.argv[0]))) as storage:
 				self.__view.restoreGeometry(storage.read())
 
 			# FIXME: does not work
-			with open('.{}-state'.format(os.path.basename(sys.argv[0]))) as storage:
+			with open('{}/.{}-state'.format(os.path.expanduser('~'), os.path.basename(sys.argv[0]))) as storage:
 				self.__view.restoreState(storage.read())
 		except IOError:
 			pass
@@ -362,7 +362,7 @@ class MainController(AbstractController):
 			handler.on_modified = on_modified
 
 			state_model.src_path_events_observer = thread = watchdog.observers.Observer()
-			thread.schedule(handler, path=os.path.dirname(state_model.src_path))
+			thread.schedule(handler, path=os.path.dirname(os.path.realpath(state_model.src_path)))
 			thread.start()
 
 	def _get_entry_fingerprint(self, index):
@@ -389,8 +389,8 @@ class MainController(AbstractController):
 		# Opens file with commands or reads from stdin
 		if state_model.src_path is None and sys.stdin.isatty():
 			logging.getLogger(__name__).warning('Path is not selected but console is attached')
-		elif state_model.src_path is not None and not os.path.isdir(os.path.dirname(state_model.src_path)):
-			logging.getLogger(__name__).warning('Path is selected but directory not exists: %s', os.path.dirname(state_model.src_path))
+		elif state_model.src_path is not None and not os.path.isdir(os.path.dirname(os.path.realpath(state_model.src_path))):
+			logging.getLogger(__name__).warning('Path is selected but directory not exists: %s', os.path.dirname(os.path.realpath(state_model.src_path)))
 			if state_model.autoexit:
 				QtWidgets.QApplication.exit(1)
 		else:
@@ -442,7 +442,7 @@ class MainController(AbstractController):
 					if event is not None and 'patterns' in event:
 						border = 1
 						spacing = 2
-						pixmaps = [QtGui.QPixmap(os.path.join((os.path.dirname(state_model.src_path) if state_model.src_path is not None else '.'), x)) for x in event['patterns']]
+						pixmaps = [QtGui.QPixmap(os.path.join((os.path.dirname(os.path.realpath(state_model.src_path)) if state_model.src_path is not None else '.'), x)) for x in event['patterns']]
 
 						# Scales pixmaps in order to prevent it to be found on a screen-shot
 						pixmaps = [x.scaled(QtCore.QSize(1.25 * x.width(), 1.25 * x.height()), QtCore.Qt.IgnoreAspectRatio) for x in pixmaps]

@@ -54,7 +54,7 @@ class CaptureController(AbstractController):
 
 		self._log_event_thread = None
 
-		if dst_path is not None and os.path.isdir(os.path.dirname(dst_path)) and not os.path.exists(dst_path):
+		if dst_path is not None and os.path.isdir(os.path.dirname(os.path.realpath(dst_path))) and not os.path.exists(dst_path):
 			with open(dst_path, 'w') as dst:
 				pass
 
