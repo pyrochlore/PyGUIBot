@@ -356,7 +356,7 @@ class MainController(AbstractController):
 
 		if not state_model.disable_observer:
 			def on_modified(event):
-				if event.src_path == state_model.src_path:
+				if os.path.realpath(event.src_path) == os.path.realpath(state_model.src_path):
 					Caller.call_once_after(.1, self._fill)
 			handler = watchdog.events.PatternMatchingEventHandler()
 			handler.on_modified = on_modified
@@ -530,8 +530,12 @@ class MainController(AbstractController):
 				# while process.poll() is None and not process.stdout.closed and process.returncode is None:
 				#     line = process.stdout.readline().rstrip()
 				for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
-					# logging.getLogger(__name__).debug('STDOUT: %s', line)
-					print >>sys.stdout, datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], '{0.f_code.co_filename}:{0.f_lineno}'.format(sys._getframe()), line; sys.stdout.flush()
+					try:
+						# logging.getLogger(__name__).debug('STDOUT: %s', line)
+						print >>sys.stdout, datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], '{0.f_code.co_filename}:{0.f_lineno}'.format(sys._getframe()), line; sys.stdout.flush()
+					except Exception as e:
+						print >>sys.stderr, 'Exception in thread:'; sys.stderr.flush()
+						print >>sys.stderr, e; sys.stderr.flush()
 				logging.getLogger(__name__).debug('Subprocess stdout loop is closed')
 			stdout_thread = threading.Thread(target=read_stdout)
 			stdout_thread.daemon = True
@@ -541,24 +545,29 @@ class MainController(AbstractController):
 				# while process.poll() is None and not process.stderr.closed and process.returncode is None:
 				#     line = process.stderr.readline().rstrip()
 				for line in (x.rstrip() for x in iter(process.stderr.readline, '')):
-					if line.startswith('Status='):
-						value = line.split('=', 1)[1]
-						if value.startswith('{'):
-							status = ast.literal_eval(value)
-							entry = tree.topLevelItem(int(status['index']))
-							if status.get('code', False):
-								entry.setText(0, '' if status['code'] == 'current' else '')
-								entry.setForeground(1, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-								entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-								entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-							tree.scrollToItem(entry, tree.EnsureVisible)
-							tree.viewport().update()  # Force update (fix for Qt5)
-					elif '[DEBUG]  ' in line:
-						logging.getLogger(__name__).debug(line)
-					elif '[INFO]  ' in line:
-						logging.getLogger(__name__).info(line)
-					else:
-						logging.getLogger(__name__).error(line)
+					try:
+						if line.startswith('Status='):
+							value = line.split('=', 1)[1]
+							if value.startswith('{'):
+								status = ast.literal_eval(value)
+								entry = tree.topLevelItem(int(status['index']))
+								if entry is not None:
+									if status.get('code', False):
+										entry.setText(0, '' if status['code'] == 'current' else '')
+										entry.setForeground(1, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+										entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+										entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+									tree.scrollToItem(entry, tree.EnsureVisible)
+								tree.viewport().update()  # Force update (fix for Qt5)
+						elif '[DEBUG]  ' in line:
+							logging.getLogger(__name__).debug(line)
+						elif '[INFO]  ' in line:
+							logging.getLogger(__name__).info(line)
+						else:
+							logging.getLogger(__name__).error(line)
+					except Exception as e:
+						print >>sys.stderr, 'Exception in thread:'; sys.stderr.flush()
+						print >>sys.stderr, e; sys.stderr.flush()
 				logging.getLogger(__name__).debug('Subprocess stderr loop is closed')
 			stderr_thread = threading.Thread(target=read_stderr)
 			stderr_thread.daemon = True
@@ -613,8 +622,12 @@ class MainController(AbstractController):
 				# while process.poll() is None and not process.stdout.closed and process.returncode is None:
 				#     line = process.stdout.readline().rstrip()
 				for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
-					# logging.getLogger(__name__).debug('STDOUT: %s', line)
-					print >>sys.stdout, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), line; sys.stdout.flush()
+					try:
+						# logging.getLogger(__name__).debug('STDOUT: %s', line)
+						print >>sys.stdout, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), line; sys.stdout.flush()
+					except Exception as e:
+						print >>sys.stderr, 'Exception in thread:'; sys.stderr.flush()
+						print >>sys.stderr, e; sys.stderr.flush()
 				logging.getLogger(__name__).info('Subprocess stdout loop is closed')
 			stdout_thread = threading.Thread(target=read_stdout)
 			stdout_thread.daemon = True
@@ -624,24 +637,29 @@ class MainController(AbstractController):
 				# while process.poll() is None and not process.stderr.closed and process.returncode is None:
 				#     line = process.stderr.readline().rstrip()
 				for line in (x.rstrip() for x in iter(process.stderr.readline, '')):
-					if line.startswith('Status='):
-						value = line.split('=', 1)[1]
-						if value.startswith('{'):
-							status = ast.literal_eval(value)
-							entry = tree.topLevelItem(int(status['index']))
-							if status.get('code', False):
-								entry.setText(0, '' if status['code'] == 'current' else '')
-								entry.setForeground(1, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-								entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-								entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-							tree.scrollToItem(entry, tree.EnsureVisible)
-							tree.viewport().update()  # Force update (fix for Qt5)
-					elif '[DEBUG]  ' in line:
-						logging.getLogger(__name__).debug(line)
-					elif '[INFO]  ' in line:
-						logging.getLogger(__name__).info(line)
-					else:
-						logging.getLogger(__name__).error(line)
+					try:
+						if line.startswith('Status='):
+							value = line.split('=', 1)[1]
+							if value.startswith('{'):
+								status = ast.literal_eval(value)
+								entry = tree.topLevelItem(int(status['index']))
+								if entry is not None:
+									if status.get('code', False):
+										entry.setText(0, '' if status['code'] == 'current' else '')
+										entry.setForeground(1, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+										entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+										entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+									tree.scrollToItem(entry, tree.EnsureVisible)
+								tree.viewport().update()  # Force update (fix for Qt5)
+						elif '[DEBUG]  ' in line:
+							logging.getLogger(__name__).debug(line)
+						elif '[INFO]  ' in line:
+							logging.getLogger(__name__).info(line)
+						else:
+							logging.getLogger(__name__).error(line)
+					except Exception as e:
+						print >>sys.stderr, 'Exception in thread:'; sys.stderr.flush()
+						print >>sys.stderr, e; sys.stderr.flush()
 				logging.getLogger(__name__).info('Subprocess stderr loop is closed')
 			stderr_thread = threading.Thread(target=read_stderr)
 			stderr_thread.daemon = True
