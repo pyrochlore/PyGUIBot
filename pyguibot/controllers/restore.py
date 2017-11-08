@@ -200,7 +200,7 @@ class RestoreController(AbstractController):
 							process = subprocess.Popen(
 								shell_command,
 								shell=True,
-								stdout=sys.stderr,  # Send STDOUT also into stderr to show everything what the command writes
+								stdout=sys.stdout,
 								stderr=sys.stderr,
 							)
 							if event.get('wait', True):
