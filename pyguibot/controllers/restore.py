@@ -189,7 +189,11 @@ class RestoreController(AbstractController):
 								event['level'] += 1 + int(event['value'])
 							else:
 								event['level'] = int(event['value'])
-							raise LookupError('{type}ing to {event[level]} with message "{message}".'.format(type=event['type'].title(), message=event.get('message', 'No message'), **locals()))
+							raise LookupError('{type}ing to {event[level]} {message}.'.format(
+								type=event['type'].title(),
+								message='with message "{event[message]}"'.format(**locals()) if 'message' in event else 'with no message',
+								**locals()
+							))
 						elif event['type'] == 'shell_command':
 							shell_command = shell_command_prefix + event['value']
 							logging.getLogger(__name__).debug('Command: %s', shell_command)
