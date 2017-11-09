@@ -427,7 +427,7 @@ class MainController(AbstractController):
 							filename = 'command'
 
 						text[1] += '' + (self._level_separator + self._level_passive_point) * (len(line) - len(line.lstrip())) + self._level_separator + self._level_active_point + ' '
-						icons[2] = QtGui.QPixmap('images/16/{}.png'.format(filename))
+						icons[2] = QtGui.QPixmap(os.path.join(sys.path[0], 'images/16/{}.png'.format(filename)))
 						text[2] += event['type'].replace(filename, '').strip('_')
 
 					if 'value' in event:
@@ -442,7 +442,11 @@ class MainController(AbstractController):
 					if event is not None and 'patterns' in event:
 						border = 1
 						spacing = 2
-						pixmaps = [QtGui.QPixmap(os.path.join((os.path.dirname(os.path.realpath(state_model.src_path)) if state_model.src_path is not None else '.'), x)) for x in event['patterns']]
+						patterns_paths = [os.path.join((os.path.dirname(os.path.realpath(state_model.src_path)) if state_model.src_path is not None else '.'), x) for x in event['patterns']]
+						for pattern_path in patterns_paths:
+							if not os.path.exists(pattern_path):
+								logging.getLogger(__name__).error('Pattern not exists: %s', pattern_path.rsplit(os.path.sep, 1)[1])
+						pixmaps = [QtGui.QPixmap(x if os.path.exists(x) else os.path.join(sys.path[0], 'images/16/not-found.png')) for x in patterns_paths]
 
 						# Scales pixmaps in order to prevent it to be found on a screen-shot
 						pixmaps = [x.scaled(QtCore.QSize(1.25 * x.width(), 1.25 * x.height()), QtCore.Qt.IgnoreAspectRatio) for x in pixmaps]
