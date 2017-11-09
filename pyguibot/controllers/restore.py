@@ -202,6 +202,7 @@ class RestoreController(AbstractController):
 								shell=True,
 								stdout=sys.stdout,
 								stderr=sys.stderr,
+								env=dict(os.environ, **dict(UPLOAD_PATH=self._tmp_path)),
 							)
 							if event.get('wait', True):
 								exit_code = process.wait()
