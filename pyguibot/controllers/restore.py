@@ -24,6 +24,7 @@ try:
 	import monotonic
 	time.monotonic = monotonic.monotonic
 except ImportError:
+	logging.getLogger(__name__).warning('Monotonic time is not imported! Attention not to change time during execution!')
 	time.monotonic = time.time
 
 import cv2
@@ -374,13 +375,21 @@ class RestoreController(AbstractController):
 			#         # self._save_array(screenshot_array[location], os.path.join(self._tmp_path, 'found_{}_{}_().png'.format(pattern_index, method, )))  # Comment it in production
 
 			# Checks if timeout reached
-			_delay = delay - (time.monotonic() - t1)
+			_delay = delay - (
+				max(0, min(10, (  # If monotonic package is not installed then try to avoid negative time jumps and positive time jumps more than 10s
+					time.monotonic() - t1  # Attention! NTP sync follows to wrong time interval! Disable it!
+				)))
+			)
 			if _delay > 0:
 				time.sleep(_delay)
 			else:
 				logging.getLogger(__name__).warning('Screenshot overtime %s', -_delay)
 			t2 = time.monotonic()
-			_timeout -= t2 - t1  # Attention! NTP sync follows to wrong time interval! Disable it!
+			_timeout -= (
+				max(0, min(10, (  # If monotonic package is not installed then try to avoid negative time jumps and positive time jumps more than 10s
+					t2 - t1  # Attention! NTP sync follows to wrong time interval! Disable it!
+				)))
+			)
 			if _timeout <= 0:
 				# if logging.getLevelName(logging.getLogger(__name__).getEffectiveLevel()) in ('DEBUG', 'INFO'):
 				if True:
