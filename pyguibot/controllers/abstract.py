@@ -221,7 +221,7 @@ class AbstractController(object):
 			)
 		).replace('\n', ' \\\n')
 		result = subprocess.check_output(command, shell=True)
-		result = result.rstrip()  # Removes trailing newline
+		result = result.rstrip('\r\n')  # Removes trailing newline
 
 		return result
 
