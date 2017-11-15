@@ -347,9 +347,9 @@ class RestoreController(AbstractController):
 
 				# Prints out and saves found parts into files
 				if any(x['max_correlation'] >= (.8 * threshold[x['method']]) for x in correlations):
-					print >>sys.stderr, 'Correlation:', ', '.join([
+					print 'Correlation:', ', '.join([
 						'{max_correlation:.1%} for {method} {max_location}'.format(**x) for x in sorted(correlations, key=lambda x: (x['method']))
-					]); sys.stderr.flush()
+					]); sys.stdout.flush()
 					for correlation in correlations:
 						if correlation['max_correlation'] >= (.8 * threshold[correlation['method']]):
 							self._save_array(
