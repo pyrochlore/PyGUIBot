@@ -170,6 +170,7 @@
     <bool>false</bool>
    </attribute>
    <addaction name="open_button"/>
+   <addaction name="save_button"/>
    <addaction name="separator"/>
    <addaction name="record_button"/>
    <addaction name="stop_button"/>
@@ -262,6 +263,16 @@
    </property>
    <property name="text">
     <string>Open</string>
+   </property>
+  </action>
+  <action name="save_button">
+   <property name="icon">
+    <iconset>
+     <normalon>../images/32/save.png</normalon>
+    </iconset>
+   </property>
+   <property name="text">
+    <string>Save as...</string>
    </property>
   </action>
   <action name="join_button">

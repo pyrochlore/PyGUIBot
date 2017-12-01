@@ -99,6 +99,7 @@ class MainController(AbstractController):
 		view.commands_tree.dragEnterEvent = (lambda widget, previous_callback: (lambda event: (self.__on_commands_tree_dragging(event, widget, previous_callback))))(view.commands_tree, view.commands_tree.dragEnterEvent)
 		view.commands_tree.dropEvent = (lambda widget, previous_callback: (lambda event: (self.__on_commands_tree_dropping(event, widget, previous_callback))))(view.commands_tree, view.commands_tree.dropEvent)
 		view.open_button.triggered.connect(self.__on_open_triggered)
+		view.save_button.triggered.connect(self.__on_save_triggered)
 		view.run_button.triggered.connect(self.__on_run_triggered)
 		view.stop_button.triggered.connect(self.__on_stop_triggered)
 		view.record_button.triggered.connect(self.__on_record_triggered)
@@ -250,20 +251,14 @@ class MainController(AbstractController):
 		Caller.call_once_after(.1, self._move, from_index=min(self._drag_from), to_index=min(self._drag_to), count=len(self._drag_entries))
 
 	def __on_open_triggered(self, event):
-		state_model = self._state_model
-		state_view = self.__view
+		path = self._open()
+		if path is not None:
+			self._state_model.src_path = path
 
-		# Shows dialog to select (maybe not existent) file
-		dialog = QtWidgets.QFileDialog(parent=self.__view)
-		dialog.setWindowTitle('Select file with data')
-		dialog.setNameFilter('PyGUIBot files (*.pyguibot)')
-		dialog.setFileMode(dialog.AnyFile)
-		# dialog.setOption(dialog.DontUseNativeDialog)
-		if dialog.exec_() == QtWidgets.QDialog.Accepted:
-			path = unicode(dialog.selectedFiles()[0])
-			if not path.endswith('.pyguibot'):
-				path += '.pyguibot'
-			state_model.src_path = path
+	def __on_save_triggered(self, event):
+		path = self._save()
+		if path is not None:
+			self._state_model.src_path = path
 
 	def __on_run_triggered(self, event):
 		time.sleep(1.)
@@ -337,8 +332,62 @@ class MainController(AbstractController):
 		except IOError:
 			pass
 
+	def _open(self):
+		"""Shows dialog to open (maybe not existent) file"""
+		path = None
+
+		dialog = QtWidgets.QFileDialog(parent=self.__view)
+		dialog.setWindowTitle('Select file to load')
+		dialog.setNameFilter('PyGUIBot files (*.pyguibot)')
+		dialog.setFileMode(dialog.AnyFile)
+		dialog.setAcceptMode(dialog.AcceptOpen)
+		# dialog.setOption(dialog.DontUseNativeDialog)
+		if dialog.exec_() == QtWidgets.QDialog.Accepted:
+			path = unicode(dialog.selectedFiles()[0])
+			if not path.endswith('.pyguibot'):
+				path += '.pyguibot'
+
+			try:
+				# Opens file (if not exists)
+				with open(path):
+					pass
+			except Exception as e:
+				QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, 'Error!', 'Failed to open!\n\n{}'.format(e)).exec_()
+				path = None
+
+		return path
+
+	def _save(self):
+		"""Shows dialog to save file"""
+		path = None
+
+		dialog = QtWidgets.QFileDialog(parent=self.__view)
+		dialog.setWindowTitle('Select file to save')
+		dialog.setNameFilter('PyGUIBot files (*.pyguibot)')
+		dialog.setFileMode(dialog.AnyFile)
+		dialog.setAcceptMode(dialog.AcceptSave)
+		# dialog.setOption(dialog.DontUseNativeDialog)
+		if dialog.exec_() == QtWidgets.QDialog.Accepted:
+			path = unicode(dialog.selectedFiles()[0])
+			if not path.endswith('.pyguibot'):
+				path += '.pyguibot'
+
+			try:
+				# Creates file (if not exists)
+				if self._state_model.src_path is not None:
+					with open(self._state_model.src_path) as src:
+						with open(path, 'w') as dst:
+							dst.write(src.read())
+				else:
+					with open(path, 'a'):
+						pass
+			except Exception as e:
+				QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, 'Error!', 'Failed to save there!\n\n{}'.format(e)).exec_()
+				path = None
+
+		return path
+
 	def _reset_tree_entries_states(self):
-		state_model = self._state_model
 		view = self.__view
 		tree = view.commands_tree
 
@@ -606,6 +655,14 @@ class MainController(AbstractController):
 		state_model = self._state_model
 
 		if state_model.process is None:
+			# Shows dialog to select path (if not selected)
+			if state_model.src_path is None:
+				path = self._save()
+				if path is None:
+					# Terminates recording if no file to save it
+					return
+				state_model.src_path = path
+
 			command = [os.path.join(sys.path[0], './controllers/capture.py')]
 			for index in range(state_model.verbose or 0):
 				command += ['-v']
@@ -804,7 +861,7 @@ def run_init():
 	parser.add_argument('--shell-command-prefix', default='', help='Adds prefix to every event named "shell_command"')
 	parser.add_argument('PATH', nargs='?', help='Directory path where to load tests')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
-	kwargs['path'] = next(x for x in [kwargs['path']] + [kwargs.pop('PATH')] if x is not None)  # Mixes positional argument "PATH" into named argument "path"
+	kwargs['path'] = next((x for x in [kwargs['path']] + [kwargs.pop('PATH')] if x is not None), None)  # Mixes positional argument "PATH" into named argument "path"
 
 	sys.exit(MainController(**kwargs).loop())
 
