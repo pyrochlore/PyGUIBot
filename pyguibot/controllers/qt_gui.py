@@ -144,6 +144,9 @@ class MainController(AbstractController):
 			if current[0] is None or 'src_path' in current[0]:
 				if state_model.src_path is not None:
 					self._set_src_path_events_observer()
+
+				view.info_label.setText('<strong>Path:</strong> <small>{state_model.src_path}</small>'.format(**locals()))
+
 				Caller.call_once_after(0, self._fill)
 
 			# if current[0] is None or 'src_data' in current[0]:
@@ -727,7 +730,7 @@ class MainController(AbstractController):
 			stderr_thread.start()
 
 			def check_if_alive():
-				with self._with_status('Press "Pause" to create new event...'):
+				with self._with_status('Press "Pause" or "Insert" to create new event...'):
 					process.wait()
 				exit_code = process.returncode
 				logging.getLogger(__name__).info('Subprocess is terminated with exit code %s', exit_code)
