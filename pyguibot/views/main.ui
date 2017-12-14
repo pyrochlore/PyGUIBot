@@ -81,9 +81,18 @@
       <property name="selectionBehavior">
        <enum>QAbstractItemView::SelectItems</enum>
       </property>
+      <property name="indentation">
+       <number>8</number>
+      </property>
+      <property name="allColumnsShowFocus">
+       <bool>true</bool>
+      </property>
       <property name="expandsOnDoubleClick">
        <bool>false</bool>
       </property>
+      <attribute name="headerMinimumSectionSize">
+       <number>0</number>
+      </attribute>
       <column>
        <property name="text">
         <string>0</string>

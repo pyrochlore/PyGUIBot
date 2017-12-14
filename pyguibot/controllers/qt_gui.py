@@ -453,7 +453,7 @@ class MainController(AbstractController):
 				# with open(state_model.src_path, 'w') as src:
 				#     pass
 			with open(state_model.src_path) if state_model.src_path is not None else sys.stdin as src:
-				for line in (x.rstrip() for x in src):
+				for index, line in enumerate((x.rstrip() for x in src), start=1):
 
 					event = self._restore(line)
 					max_level = max(max_level, event['level'])
@@ -464,9 +464,10 @@ class MainController(AbstractController):
 					text = {k: '' for k in range(tree.columnCount())}
 					icons = dict()
 
+					text[0] += '{index}. '.format(**locals())
 					if 'comments' in event:  # If line is commented
-						entry.setFirstColumnSpanned(True)
 						text[0] += event['comments'].lstrip()
+						entry.setFirstColumnSpanned(True)
 						entry.setForeground(0, QtGui.QBrush(QtGui.QColor('#666')))
 
 					if 'type' in event:
@@ -513,9 +514,9 @@ class MainController(AbstractController):
 						painter = QtGui.QPainter(combined_pixmap)
 						painter.setPen(QtGui.QColor('#fff'))
 						painter.drawRect(0, 0, combined_pixmap.width() - 1, combined_pixmap.height() - 1)
-						for index, x in enumerate(pixmaps):
+						for _index, x in enumerate(pixmaps):
 							painter.drawPixmap(
-								border + spacing + sum((spacing + pixmaps[x].width()) for x in range(index)),
+								border + spacing + sum((spacing + pixmaps[x].width()) for x in range(_index)),
 								(combined_pixmap.height() - x.height()) // 2,
 								x,
 							)
@@ -523,11 +524,11 @@ class MainController(AbstractController):
 						icons[3] = QtGui.QIcon(combined_pixmap)
 
 					# self._tree_items_to_lines[view] = line
-					for index in range(tree.columnCount()):
-						if index in text:
-							entry.setText(index, text[index])
-						if index in icons:
-							entry.setIcon(index, QtGui.QIcon(icons[index]))
+					for _index in range(tree.columnCount()):
+						if _index in text:
+							entry.setText(_index, text[_index])
+						if _index in icons:
+							entry.setIcon(_index, QtGui.QIcon(icons[_index]))
 					tree.addTopLevelItem(entry)
 
 		self._reset_tree_entries_states()
@@ -787,7 +788,6 @@ class MainController(AbstractController):
 		try:
 			with self._with_data() as lines:
 				previous_event = self._restore(lines[index].rstrip('\n'))
-			print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'previous_event=', previous_event, '<<<'; sys.stderr.flush()  # FIXME: must be removed/commented
 
 			# Create
 			with open(state_model.src_path or './events.pyguibot', 'a') as dst:

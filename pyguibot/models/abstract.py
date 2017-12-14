@@ -148,7 +148,7 @@ class ObservableAttrDict(AttrDict, _NestedObservablesMixin):
 		return value
 
 	def update(self, items, **kwargs):
-		kwargs.update(items)
+		kwargs.update(dict(items))
 
 		updated_keys = {k for k, v in kwargs.items() if k not in self or self[k] != v}
 		if updated_keys:
