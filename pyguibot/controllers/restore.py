@@ -413,9 +413,9 @@ class RestoreController(AbstractController):
 
 	@staticmethod
 	def _load_array(path):
-		mode = cv2.CV_LOAD_IMAGE_UNCHANGED
-		# mode = cv2.CV_LOAD_IMAGE_GRAYSCALE
-		# mode = cv2.CV_LOAD_IMAGE_COLOR
+		mode = getattr(cv2, 'CV_LOAD_IMAGE_UNCHANGED', cv2.IMREAD_UNCHANGED)
+		# mode = getattr(cv2, 'CV_LOAD_IMAGE_GRAYSCALE', cv2.IMREAD_GRAYSCALE)
+		# mode = getattr(cv2, 'CV_LOAD_IMAGE_COLOR', cv2.IMREAD_COLOR)
 		return cv2.imread(path, mode)
 
 	@staticmethod
