@@ -155,7 +155,7 @@ class RestoreController(AbstractController):
 
 							# Looks for image patterns on the screen
 							try:
-								patterns_paths = [os.path.join(os.path.dirname(os.path.realpath(self._src_path)) if self._src_path is not None else '.', x) for x in event['patterns']]
+								patterns_paths = [os.path.join(os.path.dirname(os.path.realpath(self._src_path)) if self._src_path is not None else '.', x.format(**os.environ)) for x in event['patterns']]
 								event_x, event_y = self._locate_image_patterns(
 									paths=patterns_paths,
 									timeout=float(event.get('timeout', 10.)),
