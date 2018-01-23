@@ -495,7 +495,7 @@ class MainController(AbstractController):
 					if event is not None and 'patterns' in event:
 						border = 1
 						spacing = 2
-						patterns_paths = [os.path.join((os.path.dirname(os.path.realpath(state_model.src_path)) if state_model.src_path is not None else '.'), x) for x in event['patterns']]
+						patterns_paths = [os.path.join((os.path.dirname(os.path.realpath(state_model.src_path)) if state_model.src_path is not None else '.'), x.format(**os.environ)) for x in event['patterns']]
 						for pattern_path in patterns_paths:
 							if not os.path.exists(pattern_path):
 								logging.getLogger(__name__).error('Pattern not exists: %s', pattern_path.rsplit(os.path.sep, 1)[1])
