@@ -156,7 +156,6 @@ class RestoreController(AbstractController):
 							# Looks for image patterns on the screen
 							try:
 								patterns_paths = [os.path.join(os.path.dirname(os.path.realpath(self._src_path)) if self._src_path is not None else '.', x.format(**os.environ)) for x in event['patterns']]
-								logging.getLogger(__name__).warning('patterns_paths=' + '%s', patterns_paths)
 								event_x, event_y = self._locate_image_patterns(
 									paths=patterns_paths,
 									timeout=float(event.get('timeout', 10.)),
@@ -312,7 +311,6 @@ class RestoreController(AbstractController):
 		logging.getLogger(__name__).debug('Looking for patterns "%s"...', paths)
 
 		patterns = [self._load_array(x) for x in paths]
-		logging.getLogger(__name__).warning('patterns=' + '%s', patterns)
 		_timeout = timeout
 
 		while True:
@@ -335,7 +333,6 @@ class RestoreController(AbstractController):
 			patterns_correlations = []
 			for pattern_index, (path, pattern) in enumerate(zip(paths, patterns), start=1):
 				# Looks for an image pattern
-				logging.getLogger(__name__).warning('pattern=' + '%s', pattern)
 				height, width = pattern.shape[:2]
 				methods = threshold.keys()
 				# with Timer('finding correlations'):
@@ -419,7 +416,12 @@ class RestoreController(AbstractController):
 		mode = getattr(cv2, 'CV_LOAD_IMAGE_UNCHANGED', cv2.IMREAD_UNCHANGED)
 		# mode = getattr(cv2, 'CV_LOAD_IMAGE_GRAYSCALE', cv2.IMREAD_GRAYSCALE)
 		# mode = getattr(cv2, 'CV_LOAD_IMAGE_COLOR', cv2.IMREAD_COLOR)
-		return cv2.imread(path, mode)
+		image = cv2.imread(path, mode)
+		if image is None:
+			if not os.path.exists(path):
+				raise Exception('Path "{}" not exists'.format(path))
+			raise Exception('Unknown error: cv2.imread("{}") returns None'.format(path))
+		return image
 
 	@staticmethod
 	def _save_array(array, path):
