@@ -156,6 +156,7 @@ class RestoreController(AbstractController):
 							# Looks for image patterns on the screen
 							try:
 								patterns_paths = [os.path.join(os.path.dirname(os.path.realpath(self._src_path)) if self._src_path is not None else '.', x.format(**os.environ)) for x in event['patterns']]
+								logging.getLogger(__name__).warning('patterns_paths=' + '%s', patterns_paths)
 								event_x, event_y = self._locate_image_patterns(
 									paths=patterns_paths,
 									timeout=float(event.get('timeout', 10.)),
@@ -311,6 +312,7 @@ class RestoreController(AbstractController):
 		logging.getLogger(__name__).debug('Looking for patterns "%s"...', paths)
 
 		patterns = [self._load_array(x) for x in paths]
+		logging.getLogger(__name__).warning('patterns=' + '%s', patterns)
 		_timeout = timeout
 
 		while True:
@@ -333,6 +335,7 @@ class RestoreController(AbstractController):
 			patterns_correlations = []
 			for pattern_index, (path, pattern) in enumerate(zip(paths, patterns), start=1):
 				# Looks for an image pattern
+				logging.getLogger(__name__).warning('pattern=' + '%s', pattern)
 				height, width = pattern.shape[:2]
 				methods = threshold.keys()
 				# with Timer('finding correlations'):
