@@ -58,7 +58,7 @@ class RestoreController(AbstractController):
 
 	def __init__(self, path, verbose=0, from_line=None, to_line=None, with_screencast=False, shell_command_prefix=''):
 		self._src_path = src_path = path
-		self._tmp_path = tmp_path = os.path.join(os.path.dirname(os.path.realpath(src_path)) if src_path is not None else '.', '.tmp')
+		self._tmp_path = tmp_path = os.path.join(os.path.realpath(os.path.dirname(src_path)) if src_path is not None else '.', '.tmp')
 
 		# Creates temporary directory
 		if not os.path.exists(tmp_path):
