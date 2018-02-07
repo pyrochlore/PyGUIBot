@@ -92,7 +92,7 @@ class RestoreController(AbstractController):
 			command = command.format(
 				display=':0.0', x=0, y=0, width=screen_width, height=screen_height,
 				audio_device='pulse',
-				audio_codec_options='-acodec libvorbis -ab 320k',
+				audio_codec_options='-an',  # Disables audio (was '-acodec libvorbis -ab 320k')
 				video_codec_options='-vcodec libx264 -preset ultrafast -g 15 -crf 0 -pix_fmt yuv444p',
 				threads=multiprocessing.cpu_count(), fps=15,
 				path=path,
