@@ -196,7 +196,7 @@ class RestoreController(AbstractController):
 								**locals()
 							))
 						elif event['type'] == 'shell_command':
-							shell_command = shell_command_prefix + event['value']
+							shell_command = shell_command_prefix + event['value'].format(**os.environ)
 							logging.getLogger(__name__).debug('Command: %s', shell_command)
 							process = subprocess.Popen(
 								shell_command,
