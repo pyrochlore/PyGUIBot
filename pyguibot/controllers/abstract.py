@@ -250,6 +250,16 @@ class AbstractController(object):
 		result = subprocess.check_output(command, shell=True)
 
 
+class _DefaultDict(dict):
+	"""Dict that calls default function and returns its result if no key found"""
+	def __init__(self, items, default):
+		self._default = default
+		super(_DefaultDict, self).__init__(items)
+
+	def __missing__(self, key):
+		return self._default(key)
+
+
 def run_show_event_types_selector():
 	"""Only for developing purposes"""
 	AbstractController._interactive_select_event_type()

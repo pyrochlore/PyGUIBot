@@ -45,7 +45,7 @@ logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 from PyQt import QtCore, QtGui, QtWidgets, uic
 
-from controllers.abstract import AbstractController
+from controllers.abstract import _DefaultDict, AbstractController
 from helpers.caller import Caller
 from models.abstract import AttrDict, ObservableAttrDict
 # from models.settings import Settings
@@ -484,7 +484,9 @@ class MainController(AbstractController):
 						text[2] += event['type'].replace(filename, '').strip('_')
 
 					if 'value' in event:
-						text[3] += (text[3] and ', ') + '"' + event['value'] + '"'
+						text[3] += (text[3] and ', ') + '"' + event['value'].format(
+							env=_DefaultDict(os.environ, default=lambda k: ('{{env[{}]}}'.format(k))),
+						) + '"'
 
 					if 'timeout' in event:
 						text[3] += (text[3] and ', ') + 'wait {}s'.format(event['timeout'])
@@ -495,7 +497,15 @@ class MainController(AbstractController):
 					if event is not None and 'patterns' in event:
 						border = 1
 						spacing = 2
-						patterns_paths = [os.path.join((os.path.dirname(os.path.realpath(state_model.src_path)) if state_model.src_path is not None else '.'), x.format(**os.environ)) for x in event['patterns']]
+						patterns_paths = [
+							os.path.join(
+								(os.path.dirname(os.path.realpath(state_model.src_path)) if state_model.src_path is not None else '.'),
+								x.format(
+									env=_DefaultDict(os.environ, default=lambda k: ('{{env[{}]}}'.format(k))),
+								)
+							)
+								for x in event['patterns']
+							]
 						for pattern_path in patterns_paths:
 							if not os.path.exists(pattern_path):
 								logging.getLogger(__name__).error('Pattern not exists: %s', pattern_path.rsplit(os.path.sep, 1)[1])

@@ -155,7 +155,13 @@ class RestoreController(AbstractController):
 
 							# Looks for image patterns on the screen
 							try:
-								patterns_paths = [os.path.join(os.path.dirname(os.path.realpath(self._src_path)) if self._src_path is not None else '.', x.format(**os.environ)) for x in event['patterns']]
+								patterns_paths = [
+									os.path.join(
+										os.path.dirname(os.path.realpath(self._src_path)) if self._src_path is not None else '.',
+										x.format(env=os.environ)
+									)
+									for x in event['patterns']
+								]
 								event_x, event_y = self._locate_image_patterns(
 									paths=patterns_paths,
 									timeout=float(event.get('timeout', 10.)),
@@ -196,7 +202,7 @@ class RestoreController(AbstractController):
 								**locals()
 							))
 						elif event['type'] == 'shell_command':
-							shell_command = shell_command_prefix + event['value'].format(**os.environ)
+							shell_command = shell_command_prefix + event['value'].format(env=os.environ)
 							logging.getLogger(__name__).debug('Command: %s', shell_command)
 							process = subprocess.Popen(
 								shell_command,
@@ -220,7 +226,7 @@ class RestoreController(AbstractController):
 							self._tap(event['value'], delay=.08)
 						elif event['type'] == 'keyboard_type':
 							time.sleep(.2)
-							Keyboard.type(event['value'].format(**os.environ), interval=.15)
+							Keyboard.type(event['value'].format(env=os.environ), interval=.15)
 							# print >>sys.stderr, 'event["value"]=', event["value"]; sys.stderr.flush()  # FIXME: must be removed/commented
 							# for character in event['value']:
 							#     Keyboard.press(character)
@@ -332,40 +338,43 @@ class RestoreController(AbstractController):
 
 			patterns_correlations = []
 			for pattern_index, (path, pattern) in enumerate(zip(paths, patterns), start=1):
-				# Looks for an image pattern
-				height, width = pattern.shape[:2]
-				methods = threshold.keys()
-				# with Timer('finding correlations'):
-				correlations = [
-					dict([['method', method]] + zip(
-						('min_correlation', 'max_correlation', 'min_location', 'max_location'),
-						cv2.minMaxLoc(cv2.matchTemplate(screenshot_array, pattern, getattr(cv2, method))),  # ~0.7s for each call of "cv2.matchTemplate"
-					))
-					for method in methods
-				]
-				patterns_correlations += [correlations]
+				if pattern is None:
+					logging.getLogger(__name__).warning('Pattern #%s is None, path: %s, ignoring...', pattern_index, path)
+				else:
+					# Looks for an image pattern
+					height, width = pattern.shape[:2]
+					methods = threshold.keys()
+					# with Timer('finding correlations'):
+					correlations = [
+						dict([['method', method]] + zip(
+							('min_correlation', 'max_correlation', 'min_location', 'max_location'),
+							cv2.minMaxLoc(cv2.matchTemplate(screenshot_array, pattern, getattr(cv2, method))),  # ~0.7s for each call of "cv2.matchTemplate"
+						))
+						for method in methods
+					]
+					patterns_correlations += [correlations]
 
-				# Prints out and saves found parts into files
-				if any(x['max_correlation'] >= (.8 * threshold[x['method']]) for x in correlations):
-					print 'Correlation:', ', '.join([
-						'{max_correlation:.1%} for {method} {max_location}'.format(**x) for x in sorted(correlations, key=lambda x: (x['method']))
-					]); sys.stdout.flush()
+					# Prints out and saves found parts into files
+					if any(x['max_correlation'] >= (.8 * threshold[x['method']]) for x in correlations):
+						print 'Correlation:', ', '.join([
+							'{max_correlation:.1%} for {method} {max_location}'.format(**x) for x in sorted(correlations, key=lambda x: (x['method']))
+						]); sys.stdout.flush()
+						for correlation in correlations:
+							if correlation['max_correlation'] >= (.8 * threshold[correlation['method']]):
+								self._save_array(
+									screenshot_array[
+										correlation['max_location'][1]:correlation['max_location'][1] + height,
+										correlation['max_location'][0]:correlation['max_location'][0] + width,
+									],
+									os.path.join(self._tmp_path, 'pattern-{0}-{1[method]}-{1[max_correlation]:.1%}.png'.format(pattern_index, correlation)),
+								)
+
 					for correlation in correlations:
-						if correlation['max_correlation'] >= (.8 * threshold[correlation['method']]):
-							self._save_array(
-								screenshot_array[
-									correlation['max_location'][1]:correlation['max_location'][1] + height,
-									correlation['max_location'][0]:correlation['max_location'][0] + width,
-								],
-								os.path.join(self._tmp_path, 'pattern-{0}-{1[method]}-{1[max_correlation]:.1%}.png'.format(pattern_index, correlation)),
-							)
-
-				for correlation in correlations:
-					if correlation['max_correlation'] >= threshold[correlation['method']]:
-						logging.getLogger(__name__).debug('Pattern "%s" is found', path)
-						x, y = correlation['max_location']
-						return x + width // 2, y + height // 2
-						# cv2.rectangle(screenshot_array, (x, y), (x + width, y + height), (0, 0, 255), 1)
+						if correlation['max_correlation'] >= threshold[correlation['method']]:
+							logging.getLogger(__name__).debug('Pattern "%s" is found', path)
+							x, y = correlation['max_location']
+							return x + width // 2, y + height // 2
+							# cv2.rectangle(screenshot_array, (x, y), (x + width, y + height), (0, 0, 255), 1)
 			# else:
 			# Prints out correlation values in order to calculate threshold value precisely
 			# if any(xx['max_correlation'] >= (.8 * threshold[xx['method']]) for x in patterns_correlations for xx in x):
