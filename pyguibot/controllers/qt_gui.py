@@ -208,6 +208,8 @@ class MainController(AbstractController):
 			self.__on_split_triggered(event)
 		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_J:
 			self.__on_join_triggered(event)
+		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_G:
+			self.__on_open_gimp_triggered(event)
 		# }
 		else:
 			logging.getLogger(__name__).warning(
@@ -307,6 +309,15 @@ class MainController(AbstractController):
 
 		indices = set([x.row() for x in tree.selectedIndexes()])
 		self._join(indices)
+
+		tree.clearSelection()
+
+	def __on_open_gimp_triggered(self, event):
+		view = self.__view
+		tree = view.commands_tree
+
+		indices = set([x.row() for x in tree.selectedIndexes()])
+		self._open_gimp(indices)
 
 		tree.clearSelection()
 
@@ -857,6 +868,15 @@ class MainController(AbstractController):
 
 					# Replaces previous event with new events
 					lines[index:(index + 1)] = [self._dump(x) + '\n' for x in dst_events]
+
+	def _open_gimp(self, indices):
+		with self._with_data() as lines:
+			if indices:
+				events = [self._restore(lines[index].rstrip('\n')) for index in sorted(indices)]
+				patterns = [xx for x in events for xx in x.get('patterns', [])]
+				if patterns:
+					command = 'gimp ' + ' '.join(pipes.quote(x) for x in patterns)
+					subprocess.check_output(command, shell=True)
 
 
 def run_init():
