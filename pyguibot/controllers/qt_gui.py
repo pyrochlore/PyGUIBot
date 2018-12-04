@@ -548,12 +548,12 @@ class MainController(AbstractController):
 					for _index in range(tree.columnCount()):
 						if _index in text:
 							entry.setText(_index, text[_index])
-							entry.setToolTip(_index, line)
-							entry.setStatusTip(_index, line)
+							entry.setToolTip(_index, '#{}  {}'.format(index, line))
+							entry.setStatusTip(_index, '#{}  {}'.format(index, line))
 						if _index in icons:
 							entry.setIcon(_index, QtGui.QIcon(icons[_index]))
-							entry.setToolTip(_index, line)
-							entry.setStatusTip(_index, line)
+							entry.setToolTip(_index, '#{}  {}'.format(index, line))
+							entry.setStatusTip(_index, '#{}  {}'.format(index, line))
 
 					tree.addTopLevelItem(entry)
 
