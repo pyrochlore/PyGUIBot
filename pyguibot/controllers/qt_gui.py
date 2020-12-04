@@ -1,10 +1,10 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: set noexpandtab:
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann (gehrmann.mail@gmail.com)
 
-from __future__ import division, unicode_literals
+
 
 __doc__ = """
 
@@ -25,12 +25,22 @@ import subprocess
 import sys
 import threading
 import time
-import watchdog.events
-import watchdog.observers
+try:
+	import watchdog.events
+	import watchdog.observers
+except ImportError:
+	print('', file=sys.stderr)
+	print('', file=sys.stderr)
+	print('  Library possibly is not found. Try to install it using:', file=sys.stderr)
+	print('    # pip3 install watchdog', file=sys.stderr)
+	print('', file=sys.stderr)
+	print('', file=sys.stderr)
+	raise
 
 if __name__ == '__main__':
 	# Sets utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	# import importlib; importlib.reload(sys); sys.setdefaultencoding('utf-8')
+	# import locale; locale.getpreferredencoding(False)
 	# Runs in application's working directory
 	sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + '/..')
 	# os.chdir(sys.path[0])
@@ -173,11 +183,11 @@ class MainController(AbstractController):
 	"""View's event handlers"""
 
 	def __on_close(self, event=None):
-		with open('{}/.{}-geometry'.format(os.path.expanduser('~'), os.path.basename(sys.argv[0])), 'w') as storage:
-			print >>storage, self.__view.saveGeometry()
+		with open('{}/.{}-geometry'.format(os.path.expanduser('~'), os.path.basename(sys.argv[0])), 'wb') as dst:
+			dst.write(self.__view.saveGeometry())
 
-		with open('{}/.{}-state'.format(os.path.expanduser('~'), os.path.basename(sys.argv[0])), 'w') as storage:
-			print >>storage, self.__view.saveState()
+		with open('{}/.{}-state'.format(os.path.expanduser('~'), os.path.basename(sys.argv[0])), 'wb') as dst:
+			dst.write(self.__view.saveState())
 
 	def __on_key_pressed(self, event):
 		if event.key() == QtCore.Qt.Key_Escape:
@@ -338,12 +348,12 @@ class MainController(AbstractController):
 
 	def __restore_window_geometry(self):
 		try:
-			with open('{}/.{}-geometry'.format(os.path.expanduser('~'), os.path.basename(sys.argv[0]))) as storage:
-				self.__view.restoreGeometry(storage.read())
+			with open('{}/.{}-geometry'.format(os.path.expanduser('~'), os.path.basename(sys.argv[0])), 'rb') as src:
+				self.__view.restoreGeometry(src.read())
 
 			# FIXME: does not work
-			with open('{}/.{}-state'.format(os.path.expanduser('~'), os.path.basename(sys.argv[0]))) as storage:
-				self.__view.restoreState(storage.read())
+			with open('{}/.{}-state'.format(os.path.expanduser('~'), os.path.basename(sys.argv[0])), 'rb') as src:
+				self.__view.restoreState(src.read())
 		except IOError:
 			pass
 
@@ -358,7 +368,7 @@ class MainController(AbstractController):
 		dialog.setAcceptMode(dialog.AcceptOpen)
 		# dialog.setOption(dialog.DontUseNativeDialog)
 		if dialog.exec_() == QtWidgets.QDialog.Accepted:
-			path = unicode(dialog.selectedFiles()[0])
+			path = str(dialog.selectedFiles()[0])
 			if not path.endswith('.pyguibot'):
 				path += '.pyguibot'
 
@@ -383,7 +393,7 @@ class MainController(AbstractController):
 		dialog.setAcceptMode(dialog.AcceptSave)
 		# dialog.setOption(dialog.DontUseNativeDialog)
 		if dialog.exec_() == QtWidgets.QDialog.Accepted:
-			path = unicode(dialog.selectedFiles()[0])
+			path = str(dialog.selectedFiles()[0])
 			if not path.endswith('.pyguibot'):
 				path += '.pyguibot'
 
@@ -613,13 +623,15 @@ class MainController(AbstractController):
 			def read_stdout():
 				# while process.poll() is None and not process.stdout.closed and process.returncode is None:
 				#     line = process.stdout.readline().rstrip()
-				for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
+				for line in (x.rstrip().decode() for x in iter(process.stdout.readline, '')):
+					if not line:  # Probably process was terminated
+						break
 					try:
 						# logging.getLogger(__name__).debug('STDOUT: %s', line)
-						print >>sys.stdout, datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], '{0.f_code.co_filename}:{0.f_lineno}'.format(sys._getframe()), line; sys.stdout.flush()
+						print(datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], '{0.f_code.co_filename}:{0.f_lineno}'.format(sys._getframe()), line, file=sys.stdout); sys.stdout.flush()
 					except Exception as e:
-						print >>sys.stderr, 'Exception in thread:'; sys.stderr.flush()
-						print >>sys.stderr, e; sys.stderr.flush()
+						print('Exception in thread:', file=sys.stderr); sys.stderr.flush()
+						print(e, file=sys.stderr); sys.stderr.flush()
 				logging.getLogger(__name__).debug('Subprocess stdout loop is closed')
 			stdout_thread = threading.Thread(target=read_stdout)
 			stdout_thread.daemon = True
@@ -628,7 +640,9 @@ class MainController(AbstractController):
 			def read_stderr():
 				# while process.poll() is None and not process.stderr.closed and process.returncode is None:
 				#     line = process.stderr.readline().rstrip()
-				for line in (x.rstrip() for x in iter(process.stderr.readline, '')):
+				for line in (x.rstrip().decode() for x in iter(process.stderr.readline, '')):
+					if not line:  # Probably process was terminated
+						break
 					try:
 						if line.startswith('Status='):
 							value = line.split('=', 1)[1]
@@ -650,8 +664,8 @@ class MainController(AbstractController):
 						else:
 							logging.getLogger(__name__).error(line)
 					except Exception as e:
-						print >>sys.stderr, 'Exception in thread:'; sys.stderr.flush()
-						print >>sys.stderr, e; sys.stderr.flush()
+						print('Exception in thread:', file=sys.stderr); sys.stderr.flush()
+						print(e, file=sys.stderr); sys.stderr.flush()
 				logging.getLogger(__name__).debug('Subprocess stderr loop is closed')
 			stderr_thread = threading.Thread(target=read_stderr)
 			stderr_thread.daemon = True
@@ -719,10 +733,10 @@ class MainController(AbstractController):
 				for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
 					try:
 						# logging.getLogger(__name__).debug('STDOUT: %s', line)
-						print >>sys.stdout, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), line; sys.stdout.flush()
+						print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), line, file=sys.stdout); sys.stdout.flush()
 					except Exception as e:
-						print >>sys.stderr, 'Exception in thread:'; sys.stderr.flush()
-						print >>sys.stderr, e; sys.stderr.flush()
+						print('Exception in thread:', file=sys.stderr); sys.stderr.flush()
+						print(e, file=sys.stderr); sys.stderr.flush()
 				logging.getLogger(__name__).info('Subprocess stdout loop is closed')
 			stdout_thread = threading.Thread(target=read_stdout)
 			stdout_thread.daemon = True
@@ -753,8 +767,8 @@ class MainController(AbstractController):
 						else:
 							logging.getLogger(__name__).error(line)
 					except Exception as e:
-						print >>sys.stderr, 'Exception in thread:'; sys.stderr.flush()
-						print >>sys.stderr, e; sys.stderr.flush()
+						print('Exception in thread:', file=sys.stderr); sys.stderr.flush()
+						print(e, file=sys.stderr); sys.stderr.flush()
 				logging.getLogger(__name__).info('Subprocess stderr loop is closed')
 			stderr_thread = threading.Thread(target=read_stderr)
 			stderr_thread.daemon = True
@@ -791,7 +805,7 @@ class MainController(AbstractController):
 
 		# Saves lines
 		with open(events_path, 'w') as dst:
-			print >>dst, ''.join(lines),
+			print(''.join(lines), end=' ', file=dst)
 
 	def _delete(self, index, count):
 		with self._with_data() as lines:
@@ -852,7 +866,7 @@ class MainController(AbstractController):
 				# Combines values
 				dst_event = dict()
 				for src_event in [self._restore(lines[index].rstrip('\n')) for index in sorted(indices)]:
-					for key, value in src_event.items():
+					for key, value in list(src_event.items()):
 						if value.__class__ == list:
 							dst_event.setdefault(key, []).extend(value)
 						else:

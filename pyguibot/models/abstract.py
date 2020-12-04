@@ -1,10 +1,10 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division, unicode_literals
+
 
 __doc__ = """
 This module provides some basic abstract models
@@ -28,7 +28,7 @@ import weakref
 
 if __name__ == '__main__':
 	# Sets utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	# import importlib; importlib.reload(sys); sys.setdefaultencoding('utf-8')
 	# Runs in application's working directory
 	os.chdir((os.path.dirname(os.path.realpath(__file__)) or '.') + '/..'); sys.path.insert(0, os.path.realpath(os.getcwd()))
 	# Working interruption by Ctrl-C
@@ -68,7 +68,7 @@ class _NestedObservablesMixin(object):
 
 		Needed to unbind bound changed-events of item (from values) if it is being removed from item-holder (self).
 		"""
-		for value in (values.values() if isinstance(self, ObservableAttrDict) else values):
+		for value in (list(values.values()) if isinstance(self, ObservableAttrDict) else values):
 			if isinstance(value, (ObservableAttrDict, ObservableList, ObservableSet)):
 				value.changed.unbind(self._items_to_callbacks_to_unbind.pop(id(value)))
 		return values
@@ -89,7 +89,7 @@ class ObservableAttrDict(AttrDict, _NestedObservablesMixin):
 		_NestedObservablesMixin.__init__(self)
 		super(ObservableAttrDict, self).__init__(*args, **kwargs)
 
-		previous, current = (self._unbind_changed({k: None for k in kwargs}), ), (self._bind_changed({k: v for k, v in kwargs.items()}), )
+		previous, current = (self._unbind_changed({k: None for k in kwargs}), ), (self._bind_changed({k: v for k, v in list(kwargs.items())}), )
 		self.changed(self, previous=previous, current=current)
 
 	def __hash__(self):
@@ -98,7 +98,7 @@ class ObservableAttrDict(AttrDict, _NestedObservablesMixin):
 
 	def __setitem__(self, key, value):
 		# Checks if there is a property with the same name -> calls it's setter
-		if key.__class__ in (str, unicode) and hasattr(self.__class__, key) and getattr(self.__class__, key).__class__ is property:
+		if key.__class__ == str and hasattr(self.__class__, key) and getattr(self.__class__, key).__class__ is property:
 			previous = (self._unbind_changed({key: getattr(self.__class__, key).fget(self)}), )
 			getattr(self.__class__, key).fset(self, value)  # Call property's setter
 			current = (self._bind_changed({key: getattr(self.__class__, key).fget(self)}), )
@@ -119,7 +119,7 @@ class ObservableAttrDict(AttrDict, _NestedObservablesMixin):
 	__delattr__ = __delitem__
 
 	def clear(self):
-		previous, current = (self._unbind_changed({k: v for k, v in self.items()}), ), (self._bind_changed({k: None for k in self}), )
+		previous, current = (self._unbind_changed({k: v for k, v in list(self.items())}), ), (self._bind_changed({k: None for k in self}), )
 		super(ObservableAttrDict, self).clear()
 		if current:
 			self.changed(self, previous=previous, current=current)
@@ -150,7 +150,7 @@ class ObservableAttrDict(AttrDict, _NestedObservablesMixin):
 	def update(self, items, **kwargs):
 		kwargs.update(dict(items))
 
-		updated_keys = {k for k, v in kwargs.items() if k not in self or self[k] != v}
+		updated_keys = {k for k, v in list(kwargs.items()) if k not in self or self[k] != v}
 		if updated_keys:
 			previous = (self._unbind_changed({k: self.get(k, None) for k in updated_keys}), )
 			super(ObservableAttrDict, self).update(kwargs)
@@ -164,7 +164,7 @@ class ObservableAttrDict(AttrDict, _NestedObservablesMixin):
 
 		Needed to provide changed-events of item (from values) up to item-holder (self).
 		"""
-		for key, value in values.items():
+		for key, value in list(values.items()):
 			if isinstance(value, (ObservableAttrDict, ObservableList, ObservableSet)):
 				value.changed.bind(self._items_to_callbacks_to_unbind.setdefault(id(value), (lambda key, value: lambda model=None, previous=(None, ), current=(None, ): (
 					self.changed(self, previous=({key: value}, ) + previous, current=({key: value}, ) + current)
@@ -498,7 +498,7 @@ class Memento(object):
 		with open(self._path, 'w') as f:
 			filename = os.path.split(self._path)[-1]
 			# try:
-			items = [[unicode(item[0]), unicode(item[1])] for item in (model.items() if isinstance(model, dict) else model) if item[1] is not None and item[1] is not self]  # Ignore Nones and Mementos
+			items = [[str(item[0]), str(item[1])] for item in (list(model.items()) if isinstance(model, dict) else model) if item[1] is not None and item[1] is not self]  # Ignore Nones and Mementos
 			# except:
 			#     print >>sys.stderr, "model,", model; sys.stderr.flush()  # FIXME: must be removed
 			#     print >>sys.stderr, "isinstance(model, dict),", isinstance(model, dict); sys.stderr.flush()  # FIXME: must be removed
@@ -508,7 +508,7 @@ class Memento(object):
 			for index, item in enumerate(items):
 				# if index % 20 == 0:
 				#     yield 'Saving {}:\n{} of {}'.format(filename, index, len(items))
-				print >>f, item[0] + '\t' * (max_tabs_count - len(item[0]) // 4) + item[1]
+				print(item[0] + '\t' * (max_tabs_count - len(item[0]) // 4) + item[1], file=f)
 
 
 class UndoRedo(object):
@@ -518,12 +518,12 @@ class UndoRedo(object):
 		self._model = model
 		self._states = []
 		if not skip_first:
-			self._states[:] = [model.items()]
+			self._states[:] = [list(model.items())]
 		self._index = len(self._states) - 1
 
 	def save(self):
 		self._index += 1
-		self._states = self._states[:self._index] + [self._model.items()]
+		self._states = self._states[:self._index] + [list(self._model.items())]
 		# print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'UNDO REDO SAVE:', self._states[self._index]; sys.stderr.flush()  # FIXME: must be removed/commented
 		# raise Exception()
 
@@ -577,7 +577,7 @@ class DiffUndoRedo(object):
 		log = self._logs[self._index]
 
 		def _apply_removing(model, record):
-			for key, subrecord in record.iteritems():
+			for key, subrecord in record.items():
 				if key.__class__ is tuple and len(key) == 2:
 					from_index, to_index = key
 					if model[from_index:to_index] != subrecord:
@@ -587,7 +587,7 @@ class DiffUndoRedo(object):
 					_apply_removing(model[key], subrecord)
 
 		def _apply_insertion(model, record):
-			for key, subrecord in record.iteritems():
+			for key, subrecord in record.items():
 				if key.__class__ is tuple and len(key) == 2:
 					from_index, to_index = key
 					model[from_index:from_index] = subrecord  # Unique Indices are not faulty. It will be [from_index:to_index] after insertion.
@@ -623,7 +623,7 @@ class IterationMixture(object):
 def _literal_eval(node_or_string, tuple=tuple, list=list, dict=dict, set=set):
 	"""Customized literal_eval from ast.py"""
 	_safe_names = {'None': None, 'True': True, 'False': False}
-	if isinstance(node_or_string, basestring):
+	if isinstance(node_or_string, str):
 		node_or_string = ast.parse(node_or_string, mode='eval')
 	if isinstance(node_or_string, ast.Expression):
 		node_or_string = node_or_string.body
@@ -656,14 +656,14 @@ def _literal_eval(node_or_string, tuple=tuple, list=list, dict=dict, set=set):
 			isinstance(node.right, ast.Num) and \
 			isinstance(node.right.n, complex) and \
 			isinstance(node.left, ast.Num) and \
-			isinstance(node.left.n, (int, long, float)):
+			isinstance(node.left.n, (int, float)):
 			left = node.left.n
 			right = node.right.n
 			if isinstance(node.op, ast.Add):
 				return left + right
 			else:
 				return left - right
-		from helpers import my_trace; print 'node = ', ; my_trace.dump_object(node, depth=2)  # FIXME: must be removed/commented
+		from helpers import my_trace; print('node = ', end=' ') ; my_trace.dump_object(node, depth=2)  # FIXME: must be removed/commented
 		raise ValueError('Malformed string: {}, {}, {}'.format(node.__class__, node, node.id))
 	return _convert(node_or_string)
 
@@ -675,7 +675,7 @@ def run_observable_attr_dict():
 		pass
 
 	def print_message_on_changed(item=None, previous=(None, ), current=(None, )):
-		print >>sys.stderr, "print_message_on_changed():", "    {}    << {}    >> {}    <> ".format(item, previous, current); sys.stderr.flush()  # FIXME: must be removed
+		print("print_message_on_changed():", "    {}    << {}    >> {}    <> ".format(item, previous, current), file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed
 
 	logging.getLogger(__name__).info('Binding callback to class...')
 	Test.changed.bind(print_message_on_changed)
@@ -772,7 +772,7 @@ def run_observable_list():
 		pass
 
 	def print_message_on_changed(item=None, previous=(None, ), current=(None, )):
-		print >>sys.stderr, "print_message_on_changed():", "{}, << {}, >> {}".format(item, previous, current); sys.stderr.flush()  # FIXME: must be removed
+		print("print_message_on_changed():", "{}, << {}, >> {}".format(item, previous, current), file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed
 
 	Test.changed.bind(print_message_on_changed)
 	test = Test([ObservableAttrDict(x=-1)])
@@ -802,7 +802,7 @@ def run_observable_set():
 		pass
 
 	def print_message_on_changed(item=None, previous=(None, ), current=(None, )):
-		print >>sys.stderr, "print_message_on_changed():", "item={}, previous={}, current={}".format(item, previous, current); sys.stderr.flush()  # FIXME: must be removed
+		print("print_message_on_changed():", "item={}, previous={}, current={}".format(item, previous, current), file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed
 
 	Test.changed.bind(print_message_on_changed)
 	x1 = ObservableAttrDict(x=1)

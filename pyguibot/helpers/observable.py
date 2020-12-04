@@ -1,10 +1,10 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division, unicode_literals
+
 
 __doc__ = """This module provides 'Observer-Observable' Pattern
 
@@ -29,7 +29,7 @@ import weakref
 
 if __name__ == '__main__':
 	# Sets utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	# import importlib; importlib.reload(sys); sys.setdefaultencoding('utf-8')
 	# Runs in application's working directory
 	os.chdir((os.path.dirname(os.path.realpath(__file__)) or '.') + '/..'); sys.path.insert(0, os.path.realpath(os.getcwd()))
 	# Working interruption by Ctrl-C
@@ -114,7 +114,7 @@ class _Observable(object):
 
 						def invoke(args_id, kwargs_id):
 							if logging.getLogger(__name__).level == logging.DEBUG:
-								with Timer('observable for ' + (function.im_func.func_name if hasattr(function, 'im_function') else function.func_name)):
+								with Timer('observable for ' + (function.__func__.__name__ if hasattr(function, 'im_function') else function.__name__)):
 									function(*self.args.pop(str(args_id)), **self.kwargs.pop(str(kwargs_id)))
 							else:
 								function(*self.args.pop(str(args_id)), **self.kwargs.pop(str(kwargs_id)))
@@ -135,7 +135,7 @@ class _Observable(object):
 		try:
 			result = self._observable._function.__get__(im_class if isinstance(self._observable._function, classmethod) else im_self, im_class)(*args, **kwargs)
 		except Exception:
-			print >>sys.stderr, FG.RED, '__call__:', self._observable._function, 'from', self._observable._function.__class__.__module__, self._observable._function.__class__.__name__, 'called with', args, kwargs, FG.RESET; sys.stdout.flush()  # FIXME: must be removed
+			print(FG.RED, '__call__:', self._observable._function, 'from', self._observable._function.__class__.__module__, self._observable._function.__class__.__name__, 'called with', args, kwargs, FG.RESET, file=sys.stderr); sys.stdout.flush()  # FIXME: must be removed
 			raise
 
 		# Call handlers
@@ -154,8 +154,8 @@ class _Observable(object):
 					handler(*args, **kwargs)
 			except Exception as e:
 				# Print breakpoint where observer was set
-				print >>sys.stderr, "Observer was bound here:\n", "".join(traceback.format_list(handler.breakpoint[:-1]))
-				print >>sys.stderr, "Handler,", handler, "\n"
+				print("Observer was bound here:\n", "".join(traceback.format_list(handler.breakpoint[:-1])), file=sys.stderr)
+				print("Handler,", handler, "\n", file=sys.stderr)
 				raise
 
 		return result
@@ -179,45 +179,45 @@ def run_observable():
 		@Observable
 		@classmethod
 		def class_changed(cls, *args, **kwargs):
-			print >>sys.stderr, "Source.class_changed is called with:", 'cls=' + str(cls), 'args=' + str(args), 'kwargs=' + str(kwargs); sys.stdout.flush()  # FIXME: must be removed
+			print("Source.class_changed is called with:", 'cls=' + str(cls), 'args=' + str(args), 'kwargs=' + str(kwargs), file=sys.stderr); sys.stdout.flush()  # FIXME: must be removed
 			return args
 
 		@Observable
 		def instance_changed(self, *args, **kwargs):
-			print >>sys.stderr, "source.instance_changed is called with:", 'self=' + str(self), 'args=' + str(args), 'kwargs=' + str(kwargs); sys.stdout.flush()  # FIXME: must be removed
+			print("source.instance_changed is called with:", 'self=' + str(self), 'args=' + str(args), 'kwargs=' + str(kwargs), file=sys.stderr); sys.stdout.flush()  # FIXME: must be removed
 			return args
 
 	class Listener(object):
 		@classmethod
 		def class_handler(cls, *args, **kwargs):
-			print >>sys.stderr, "Listener.class_handler is called with:", 'cls=' + str(cls), 'args=' + str(args), 'kwargs=' + str(kwargs); sys.stdout.flush()  # FIXME: must be removed
+			print("Listener.class_handler is called with:", 'cls=' + str(cls), 'args=' + str(args), 'kwargs=' + str(kwargs), file=sys.stderr); sys.stdout.flush()  # FIXME: must be removed
 
 		def instance_handler(self, *args, **kwargs):
-			print >>sys.stderr, "Listener.instance_handler is called with:", 'self=' + str(self), 'args=' + str(args), 'kwargs=' + str(kwargs); sys.stdout.flush()  # FIXME: must be removed
+			print("Listener.instance_handler is called with:", 'self=' + str(self), 'args=' + str(args), 'kwargs=' + str(kwargs), file=sys.stderr); sys.stdout.flush()  # FIXME: must be removed
 
 	def class_handler(*args, **kwargs):
-		print >>sys.stderr, "class_handler is called with:", 'args=' + str(args), 'kwargs=' + str(kwargs); sys.stdout.flush()  # FIXME: must be removed
+		print("class_handler is called with:", 'args=' + str(args), 'kwargs=' + str(kwargs), file=sys.stderr); sys.stdout.flush()  # FIXME: must be removed
 
 	def instance_handler(*args, **kwargs):
-		print >>sys.stderr, "instance_handler is called with:", 'args=' + str(args), 'kwargs=' + str(kwargs); sys.stdout.flush()  # FIXME: must be removed
+		print("instance_handler is called with:", 'args=' + str(args), 'kwargs=' + str(kwargs), file=sys.stderr); sys.stdout.flush()  # FIXME: must be removed
 
-	print >>sys.stderr, "\nTest bind/unbind..."; sys.stdout.flush()  # FIXME... must be removed
+	print("\nTest bind/unbind...", file=sys.stderr); sys.stdout.flush()  # FIXME... must be removed
 	Source.class_changed.bind(Listener.class_handler)
 	Source.class_changed.unbind(Listener.class_handler)
 
-	print >>sys.stderr, "\nTest with classmethod..."; sys.stdout.flush()  # FIXME... must be removed
+	print("\nTest with classmethod...", file=sys.stderr); sys.stdout.flush()  # FIXME... must be removed
 	Source.class_changed.bind(Listener.class_handler)
 	Source.class_changed.bind(class_handler)
 	result = Source.class_changed('class is changed')
-	print >>sys.stderr, "result:", result; sys.stdout.flush()  # FIXME: must be removed
+	print("result:", result, file=sys.stderr); sys.stdout.flush()  # FIXME: must be removed
 
-	print >>sys.stderr, "\nTest with instancemethod..."; sys.stdout.flush()  # FIXME... must be removed
+	print("\nTest with instancemethod...", file=sys.stderr); sys.stdout.flush()  # FIXME... must be removed
 	source = Source()
 	listener = Listener()
 	source.instance_changed.bind(listener.instance_handler)
 	source.instance_changed.bind(instance_handler)
 	result = source.instance_changed('instance is changed')
-	print >>sys.stderr, "result:", result; sys.stdout.flush()  # FIXME: must be removed
+	print("result:", result, file=sys.stderr); sys.stdout.flush()  # FIXME: must be removed
 
 
 def run_signal():
@@ -228,7 +228,7 @@ def run_signal():
 	# print >>sys.stderr, "signal.connect,", signal.connect; sys.stderr.flush()  # FIXME: must be removed
 	# print >>sys.stderr, "signal.emit,", signal.emit; sys.stderr.flush()  # FIXME: must be removed
 	from PyQt5 import QtCore, QtGui, uic
-	print >>sys.stderr, "'PyQt5' in sys.modules,", 'PyQt5' in sys.modules; sys.stderr.flush()  # FIXME: must be removed
+	print("'PyQt5' in sys.modules,", 'PyQt5' in sys.modules, file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed
 
 
 def main():

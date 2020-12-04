@@ -1,0 +1,5 @@
+monotonic
+numpy
+opencv-python
+pyuserinput
+watchdog

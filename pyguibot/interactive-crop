@@ -1,10 +1,9 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab ft=python
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division, unicode_literals
 import logging
 import os
 import subprocess
@@ -15,7 +14,7 @@ import wx.lib.mixins.inspection
 
 if __name__ == '__main__':
 	# Sets utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	# import importlib; importlib.reload(sys); sys.setdefaultencoding('utf-8')
 	# Runs in application's working directory
 	os.chdir('.'); sys.path.insert(0, os.path.realpath(os.getcwd()))
 	# Working interruption by Ctrl-C
@@ -39,7 +38,7 @@ class Controller(object):
 		self._app = app = wx.lib.mixins.inspection.InspectableApp()
 		if geometry is not None:
 			window_size, window_position = \
-				[map(int, x.split('x' if 'x' in x else '+')) for x in geometry.split('+', 1)]
+				[list(map(int, x.split('x' if 'x' in x else '+'))) for x in geometry.split('+', 1)]
 		else:
 			window_size, window_position = \
 				[x - 2 * screen_offset for x in wx.GetDisplaySize()], 2 * [screen_offset]
@@ -151,7 +150,7 @@ def run_controller():
 		width, height = abs(x1 - x2), abs(y1 - y2)
 
 		geometry = '{width}x{height}+{x}+{y}'.format(**locals())
-		print geometry
+		print(geometry)
 
 		# Crops with PIL (Python Imaging Library)
 		if args.engine == 'pil':

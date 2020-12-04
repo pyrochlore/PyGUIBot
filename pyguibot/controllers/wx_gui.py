@@ -1,10 +1,10 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division, unicode_literals
+
 import ast
 import logging
 import os
@@ -21,7 +21,7 @@ import wx.lib.mixins.inspection
 
 if __name__ == '__main__':
 	# Sets utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	# import importlib; importlib.reload(sys); sys.setdefaultencoding('utf-8')
 	# Runs in application's working directory
 	sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + '/..')
 	os.chdir(sys.path[0])
@@ -347,8 +347,8 @@ class WxGuiController(object):
 		tree_root = self._tree_root
 
 		selected_indices = [tree_root.GetChildren().index(x) for x in tree.GetSelections()]
-		print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'selected_indices=', selected_indices; sys.stderr.flush()  # FIXME: must be removed/commented
-		print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'direction=', direction; sys.stderr.flush()  # FIXME: must be removed/commented
+		print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'selected_indices=', selected_indices, file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
+		print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'direction=', direction, file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 		# # from_line, to_line = min(selected_indices or [None]), max(selected_indices or [None])
 
 	def _fill(self, src_path):

@@ -1,10 +1,10 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division, unicode_literals
+
 
 __doc__ = """
 This module provides delayed asynchronous calls
@@ -26,7 +26,7 @@ import weakref
 
 if __name__ == '__main__':
 	# Sets utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	# import importlib; importlib.reload(sys); sys.setdefaultencoding('utf-8')
 	# Runs in application's working directory
 	os.chdir((os.path.dirname(os.path.realpath(__file__)) or '.') + '/..'); sys.path.insert(0, os.path.realpath(os.getcwd()))
 	# Working interruption by Ctrl-C
@@ -100,7 +100,7 @@ class Caller(object):
 					# previous_timer.stop()
 					# previous_timer.deleteLater()
 				else:
-					print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'Can not stop somethin else as QTimer'; sys.stderr.flush()  # FIXME: must be removed/commented
+					print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'Can not stop somethin else as QTimer', file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 			elif 'wx' in sys.modules:
 				previous_timer.Stop()
 
@@ -113,14 +113,14 @@ class Caller(object):
 					if cls._once_timers.get(function, None) == timer:
 						previous_timer = cls._once_timers.pop(function, None)
 						if logging.getLogger(__name__).level == logging.DEBUG:
-							with Timer('caller for ' + (function.im_func.func_name if hasattr(function, 'im_function') else function.func_name)):
+							with Timer('caller for ' + (function.__func__.__name__ if hasattr(function, 'im_function') else function.__name__)):
 								function(*args, **kwargs)
 						else:
 							try:
 								# print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'FUNCTION', function; sys.stderr.flush()  # FIXME: must be removed/commented
 								function(*args, **kwargs)
 							except Exception as e:
-								print >>sys.stderr, 'Traceback (most recent call last):\n', "".join(traceback.format_list(function.breakpoint[:-1])), 'Callback was set here.\n'
+								print('Traceback (most recent call last):\n', "".join(traceback.format_list(function.breakpoint[:-1])), 'Callback was set here.\n', file=sys.stderr)
 								raise
 				# Invokes run_function in main thread after delay. FIXME: works only in PyQt4
 				timer = QtCore.QTimer()
@@ -178,7 +178,7 @@ class Caller(object):
 					previous_timer.stop()
 					previous_timer.deleteLater()
 				else:
-					print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'Can not stop somethin else as QTimer'; sys.stderr.flush()  # FIXME: must be removed/commented
+					print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'Can not stop somethin else as QTimer', file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 			elif 'wx' in sys.modules:
 				previous_timer.Stop()
 			else:
@@ -213,9 +213,9 @@ def run_caller():
 	app = QtWidgets.QApplication(sys.argv)
 
 	def callback(*args, **kwargs):
-		print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'CALLBACK():', args, kwargs; sys.stderr.flush()  # FIXME: must be removed/commented
+		print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'CALLBACK():', args, kwargs, file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 
-	print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'Main QThread:', QtCore.QThread.currentThread(), 'Current QThread:', QtWidgets.qApp.thread(); sys.stderr.flush()  # FIXME: must be removed/commented
+	print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'Main QThread:', QtCore.QThread.currentThread(), 'Current QThread:', QtWidgets.qApp.thread(), file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 
 	# def on_run_timer():
 	def run():
@@ -224,16 +224,16 @@ def run_caller():
 		Caller.call_once_after(.5, callback, 6, power=7)
 		# Caller.call_never(callback)
 	if run_in_threading_thread:  # Run in threading.Thread
-		print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'running in threading.Thread'; sys.stderr.flush()  # FIXME: must be removed/commented
+		print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'running in threading.Thread', file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 		run_thread = threading.Thread(target=run)
 		run_thread.start()
 	elif run_in_qthread:  # Run in Qthread
-		print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'running in QThread'; sys.stderr.flush()  # FIXME: must be removed/commented
+		print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'running in QThread', file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 		run_thread = QtCore.QThread()
 		run_thread.run = run
 		run_thread.start()
 	else:
-		print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'running in main thread'; sys.stderr.flush()  # FIXME: must be removed/commented
+		print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'running in main thread', file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 		run()
 	# run_timer = QtCore.QTimer()
 	# run_timer.timeout.connect(on_run_timer)
@@ -247,9 +247,9 @@ def run_caller():
 	quit_timer.setSingleShot(True)
 	quit_timer.start(2 * 1000)  # In ms
 
-	print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'EVENTLOOP()'; sys.stderr.flush()  # FIXME: must be removed/commented
+	print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'EVENTLOOP()', file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 	app.exec_()
-	print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'Caller._once_timers=', Caller._once_timers; sys.stderr.flush()  # FIXME: must be removed/commented
+	print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'Caller._once_timers=', Caller._once_timers, file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 
 
 def run_doctest():

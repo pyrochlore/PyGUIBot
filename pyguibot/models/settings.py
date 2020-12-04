@@ -1,10 +1,10 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division, unicode_literals
+
 
 __doc__ = """
 This module provides a model to store program's settings
@@ -17,7 +17,7 @@ import sys
 
 if __name__ == '__main__':
 	# Sets utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	# import importlib; importlib.reload(sys); sys.setdefaultencoding('utf-8')
 	# Runs in application's working directory
 	os.chdir((os.path.dirname(os.path.realpath(__file__)) or '.') + '/..'); sys.path.insert(0, os.path.realpath(os.getcwd()))
 	# Working interruption by Ctrl-C
@@ -80,11 +80,11 @@ def run_settings():
 	settings = Settings(path='settings.txt')
 
 	storages = settings.shared_vocabularies_storages
-	print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'storages=', storages; sys.stderr.flush()  # FIXME: must be removed/commented
-	print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'storages.__class__=', storages.__class__; sys.stderr.flush()  # FIXME: must be removed/commented
+	print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'storages=', storages, file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
+	print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'storages.__class__=', storages.__class__, file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 
 	storages.add(ObservableAttrDict(name='New storage', shared_id='test_id'))
-	print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'storages=', storages; sys.stderr.flush()  # FIXME: must be removed/commented
+	print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'storages=', storages, file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 
 
 def main():

@@ -4,13 +4,14 @@
 "exec" "python" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division, unicode_literals; del division, unicode_literals
+; del division, unicode_literals
 import setuptools
 import sys
+import importlib
 
 if __name__ == '__main__':
 	# Sets utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	importlib.reload(sys); sys.setdefaultencoding('utf-8')
 
 # import pyguibot
 

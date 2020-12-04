@@ -1,10 +1,9 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division
 import ast
 import datetime
 import logging
@@ -16,16 +15,9 @@ import sys
 import textwrap
 import time
 
-try:
-	import cv2
-except ImportError:
-	logging.getLogger(__name__).error('Library is not found. Try to install it using:')
-	logging.getLogger(__name__).error('  # pip2 install opencv-python')
-	raise
-
 if __name__ == '__main__':
 	# Set utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	# import importlib; importlib.reload(sys); sys.setdefaultencoding('utf-8')
 	# Run in application's working directory
 	sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + '/..')
 	os.chdir(sys.path[0])
@@ -53,7 +45,7 @@ class AbstractController(object):
 		_event = event.copy()
 		comments = _event.pop('comments', '')
 		level = _event.pop('level')
-		return '\t' * level + (unicode(_event) if _event else '') + ('  ' if _event and comments else '') + comments
+		return '\t' * level + (str(_event) if _event else '') + ('  ' if _event and comments else '') + comments
 
 	def _restore(self, data):
 		"""Parses raw data, returns a dict-like object"""
@@ -138,7 +130,7 @@ class AbstractController(object):
 
 				# Saves event
 				logging.getLogger(__name__).info(repr(event))
-				print >>dst, self._dump(event)
+				print(self._dump(event), file=dst)
 				dst.flush()
 
 			except:
@@ -274,7 +266,7 @@ def run_show_event_types_selector():
 def run_show_confirmation():
 	"""Only for developing purposes"""
 	result = AbstractController._interactive_confirm('Test confirmation?')
-	print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'result=', result; sys.stderr.flush()  # FIXME: must be removed/commented
+	print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'result=', result, file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed/commented
 
 
 def run_show_key_sequence_confirmation():

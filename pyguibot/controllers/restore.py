@@ -1,10 +1,10 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division
+
 
 __doc__ = """
 """
@@ -27,16 +27,9 @@ except ImportError:
 	logging.getLogger(__name__).warning('Monotonic time is not imported! Attention not to change time during execution!')
 	time.monotonic = time.time
 
-try:
-	import cv2
-except ImportError:
-	logging.getLogger(__name__).error('Library is not found. Try to install it using:')
-	logging.getLogger(__name__).error('  # pip2 install opencv-python')
-	raise
-
 if __name__ == '__main__':
 	# Set utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	# import importlib; importlib.reload(sys); sys.setdefaultencoding('utf-8')
 	# Run in application's working directory
 	sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + '/..')
 	# os.chdir(sys.path[0])
@@ -56,6 +49,17 @@ from models.devices import (
 	Mouse,
 	Screen,
 )
+
+try:
+	import cv2
+except ImportError:
+	print('', file=sys.stderr)
+	print('', file=sys.stderr)
+	print('  Library is not found. Try to install it using:', file=sys.stderr)
+	print('    # pip install opencv-python', file=sys.stderr)
+	print('', file=sys.stderr)
+	print('', file=sys.stderr)
+	raise
 
 
 class RestoreController(AbstractController):
@@ -133,7 +137,7 @@ class RestoreController(AbstractController):
 
 					# Skips empty lines and comments
 					if 'comments' in event:  # If line is commented
-						print >>sys.stderr, 'Status={}'.format(dict(index=index, code='')); sys.stderr.flush()
+						print('Status={}'.format(dict(index=index, code='')), file=sys.stderr); sys.stderr.flush()
 						continue
 
 					# Skips level with exception occurred
@@ -141,14 +145,14 @@ class RestoreController(AbstractController):
 					if skip_level is not None:
 						logging.getLogger(__name__).debug('skip_level: %s', skip_level)
 						if event['level'] >= skip_level:
-							print >>sys.stderr, 'Status={}'.format(dict(index=index, code='')); sys.stderr.flush()
+							print('Status={}'.format(dict(index=index, code='')), file=sys.stderr); sys.stderr.flush()
 							continue
 						else:
 							skip_level = None
 
 					try:
-						print >>sys.stderr, 'Status={}'.format(dict(index=index, code='current')); sys.stderr.flush()
-						print 'Doing step #{line_number}'.format(line_number=(index + 1)); sys.stdout.flush()
+						print('Status={}'.format(dict(index=index, code='current')), file=sys.stderr); sys.stderr.flush()
+						print('Doing step #{line_number}'.format(line_number=(index + 1))); sys.stdout.flush()
 
 						event_x, event_y = Mouse.position()
 
@@ -180,7 +184,7 @@ class RestoreController(AbstractController):
 									}),
 								)
 							except Exception as e:
-								raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(patterns_paths=patterns_paths))), sys.exc_info()[2]
+								raise e.__class__(e.__class__(str(e) + ' [DEBUG: {}]'.format(dict(patterns_paths=patterns_paths)))).with_traceback(sys.exc_info()[2])
 
 						# Shifts coordinates if 'x' or 'y' found in event
 						event_x, event_y = [
@@ -280,21 +284,21 @@ class RestoreController(AbstractController):
 							Mouse.scroll(event_x, event_y)
 							time.sleep(.2)  # Waits till reaction is shown
 
-						print >>sys.stderr, 'Status={}'.format(dict(index=index, code='completed')); sys.stderr.flush()
+						print('Status={}'.format(dict(index=index, code='completed')), file=sys.stderr); sys.stderr.flush()
 
 					except LookupError as e:
-						print >>sys.stderr, 'Status={}'.format(dict(index=index, code=(
+						print('Status={}'.format(dict(index=index, code=(
 							'completed' if event['type'] == 'jump' else 'failed'
-						))); sys.stderr.flush()
+						))), file=sys.stderr); sys.stderr.flush()
 						if event['level'] > 0:
 							logging.getLogger(__name__).debug('Skipping level %s for %s', event['level'], event)
 							skip_level = event['level']
 						elif event['type'] == 'jump':
-							print repr(e); sys.stdout.flush()
+							print(repr(e)); sys.stdout.flush()
 							break
 						else:
 							# raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(line=index, event=event))), sys.exc_info()[2]
-							print >>sys.stderr, repr(e); sys.stderr.flush()
+							print(repr(e), file=sys.stderr); sys.stderr.flush()
 							sys.exit(1)
 
 		except KeyboardInterrupt:
@@ -348,22 +352,22 @@ class RestoreController(AbstractController):
 				else:
 					# Looks for an image pattern
 					height, width = pattern.shape[:2]
-					methods = threshold.keys()
+					methods = list(threshold.keys())
 					# with Timer('finding correlations'):
 					correlations = [
-						dict([['method', method]] + zip(
+						dict([['method', method]] + list(zip(
 							('min_correlation', 'max_correlation', 'min_location', 'max_location'),
 							cv2.minMaxLoc(cv2.matchTemplate(screenshot_array, pattern, getattr(cv2, method))),  # ~0.7s for each call of "cv2.matchTemplate"
-						))
+						)))
 						for method in methods
 					]
 					patterns_correlations += [correlations]
 
 					# Prints out and saves found parts into files
 					if any(x['max_correlation'] >= (.8 * threshold[x['method']]) for x in correlations):
-						print 'Correlation:', ', '.join([
+						print('Correlation:', ', '.join([
 							'{max_correlation:.1%} for {method} {max_location}'.format(**x) for x in sorted(correlations, key=lambda x: (x['method']))
-						]); sys.stdout.flush()
+						])); sys.stdout.flush()
 						for correlation in correlations:
 							if correlation['max_correlation'] >= (.8 * threshold[correlation['method']]):
 								self._save_array(

@@ -1,10 +1,9 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division
 import logging
 import os
 import signal
@@ -13,17 +12,9 @@ import sys
 import threading
 import time
 
-try:
-	import cv2
-except ImportError:
-	logging.getLogger(__name__).error('Library is not found. Try to install it using:')
-	logging.getLogger(__name__).error('  # pip2 install opencv-python')
-	raise
-
-
 if __name__ == '__main__':
 	# Set utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	# import importlib; importlib.reload(sys); sys.setdefaultencoding('utf-8')
 	# Run in application's working directory
 	sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)) + '/..')
 	# os.chdir(sys.path[0])

@@ -1,10 +1,10 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division
+
 import logging
 import math
 import os
@@ -17,7 +17,7 @@ import pyscreenshot
 
 if __name__ == '__main__':
 	# Set utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	# import importlib; importlib.reload(sys); sys.setdefaultencoding('utf-8')
 	# Run in application's working directory
 	os.chdir((os.path.dirname(os.path.realpath(__file__)) or '.') + '/..'); sys.path.insert(0, os.path.realpath(os.getcwd()))
 	# Working interruption by Ctrl-C
@@ -42,7 +42,7 @@ class Screen(object):
 
 	def _print_backends():
 		"""Prints out availables backends"""
-		print pyscreenshot.backends()
+		print(pyscreenshot.backends())
 
 
 class Keyboard(pykeyboard.PyKeyboard):

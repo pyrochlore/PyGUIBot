@@ -1,10 +1,9 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division
 import logging
 import math
 import os
@@ -17,8 +16,12 @@ try:
 	import pykeyboard
 	import pymouse
 except ImportError:
-	logging.getLogger(__name__).error('Library is not found. Try to install it using:')
-	logging.getLogger(__name__).error('  # pip2 install pyuserinput')
+	print('', file=sys.stderr)
+	print('', file=sys.stderr)
+	print('  Library is not found. Try to install it using:', file=sys.stderr)
+	print('    # pip install pyuserinput', file=sys.stderr)
+	print('', file=sys.stderr)
+	print('', file=sys.stderr)
 	raise
 # import pyscreenshot
 
@@ -89,7 +92,7 @@ class Screen(object):
 
 		with tempfile.NamedTemporaryFile(delete=True) as dst:
 			try:
-			dst.close()
+				dst.close()
 				cls.make_screenshot(dst.name)
 				return PIL_Image.open(dst.name)
 			finally:

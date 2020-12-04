@@ -1,10 +1,10 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python2" "-B" "$0" "$@"
+"exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
-from __future__ import division, unicode_literals
+
 
 __doc__ = """
 This module provides tools for time measurement
@@ -21,7 +21,7 @@ import time
 
 if __name__ == '__main__':
 	# Sets utf-8 (instead of latin1) as default encoding for every IO
-	reload(sys); sys.setdefaultencoding('utf-8')
+	# import importlib; importlib.reload(sys); sys.setdefaultencoding('utf-8')
 	# Runs in application's working directory
 	os.chdir((os.path.dirname(os.path.realpath(__file__)) or '.') + '/..'); sys.path.insert(0, os.path.realpath(os.getcwd()))
 	# Working interruption by Ctrl-C
@@ -55,7 +55,7 @@ class Timer(object):
 	def __exit__(self, exc_type, exc_value, traceback):
 		self._stop_time = time.time()
 		if self._show and logging.getLogger(self._module).level in (logging.DEBUG, logging.INFO):
-			print >>sys.stderr, datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe().f_back), str(self) + ' - took ' + self._fmt; sys.stderr.flush()  # FIXME: must be removed
+			print(datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe().f_back), str(self) + ' - took ' + self._fmt, file=sys.stderr); sys.stderr.flush()  # FIXME: must be removed
 
 	def __str__(self):
 		return b'{:.06f}s'.format(float(self))
