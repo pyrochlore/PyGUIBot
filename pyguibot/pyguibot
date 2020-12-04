@@ -1,3 +1,3 @@
 #!/bin/sh
 
-$(dirname $0)/controllers/qt_gui.py $@
+$(dirname $(realpath $0))/controllers/qt_gui.py $@

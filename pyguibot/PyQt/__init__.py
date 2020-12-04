@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python" "-B" "$0" "$@"
+"exec" "python2" "-B" "$0" "$@"
 # (c) gehrmann
 
 from __future__ import division, unicode_literals
@@ -36,16 +36,21 @@ try:
 	logging.getLogger(__name__).debug('Using PyQt5: %s', QtCore.QT_VERSION_STR)
 	# Force PyQt5 be alike PyQt4
 	QtCore.QString = lambda x: (x)
-except ImportError as e1:
-	try:
-		from PyQt4 import QtCore, QtGui, uic
-		try:
-			from PyQt5 import QtSvg
-		except ImportError:
-			pass
-		logging.getLogger(__name__).debug('Using PyQt4: %s', QtCore.QT_VERSION_STR)
-		# Force PyQt4 be alike PyQt5
-		QtWidgets = QtGui
-		QtCore.qInstallMessageHandler = QtCore.qInstallMsgHandler
-	except ImportError as e2:
-		raise ImportError('%s, %s' % (e1, e2))
+except ImportError:
+	logging.getLogger(__name__).error('Library possibly is not found. Try to install it using:')
+	logging.getLogger(__name__).error('  # pip2 install PyQt5')
+	raise
+# except ImportError as e1:
+#     logging.getLogger(__name__).warning('PyQt5 not found. Trying to find PyQt4...')
+#     try:
+#         from PyQt4 import QtCore, QtGui, uic
+#         try:
+#             from PyQt5 import QtSvg
+#         except ImportError:
+#             pass
+#         logging.getLogger(__name__).debug('Using PyQt4: %s', QtCore.QT_VERSION_STR)
+#         # Force PyQt4 be alike PyQt5
+#         QtWidgets = QtGui
+#         QtCore.qInstallMessageHandler = QtCore.qInstallMsgHandler
+#     except ImportError as e2:
+#         raise ImportError('%s, %s' % (e1, e2))

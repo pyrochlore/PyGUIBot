@@ -1,7 +1,7 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python" "-B" "$0" "$@"
+"exec" "python2" "-B" "$0" "$@"
 # (c) gehrmann
 
 from __future__ import division
@@ -27,7 +27,12 @@ except ImportError:
 	logging.getLogger(__name__).warning('Monotonic time is not imported! Attention not to change time during execution!')
 	time.monotonic = time.time
 
-import cv2
+try:
+	import cv2
+except ImportError:
+	logging.getLogger(__name__).error('Library is not found. Try to install it using:')
+	logging.getLogger(__name__).error('  # pip2 install opencv-python')
+	raise
 
 if __name__ == '__main__':
 	# Set utf-8 (instead of latin1) as default encoding for every IO

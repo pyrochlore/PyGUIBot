@@ -1,7 +1,7 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python" "-B" "$0" "$@"
+"exec" "python2" "-B" "$0" "$@"
 # (c) gehrmann
 
 from __future__ import division, unicode_literals

@@ -1,7 +1,7 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: set noexpandtab:
-"exec" "python" "-B" "$0" "$@"
+"exec" "python2" "-B" "$0" "$@"
 # (c) gehrmann (gehrmann.mail@gmail.com)
 
 from __future__ import division, unicode_literals
@@ -56,7 +56,7 @@ class _State(ObservableAttrDict):
 
 
 class MainController(AbstractController):
-	def __init__(self, path, verbose, autorun, autoexit, geometry, with_screencast, disable_observer, shell_command_prefix):
+	def __init__(self, path, verbose, autorun, autostop, autoexit, geometry, with_screencast, disable_observer, shell_command_prefix):
 		self._app = app = QtWidgets.QApplication(sys.argv)
 
 		"""Models"""
@@ -65,6 +65,7 @@ class MainController(AbstractController):
 		state_model.src_path_events_observer = None
 		state_model.verbose = verbose
 		state_model.process = None
+		state_model.autostop = autostop
 		state_model.autoexit = autoexit
 		state_model.with_screencast = with_screencast
 		state_model.disable_observer = disable_observer
@@ -86,7 +87,7 @@ class MainController(AbstractController):
 		self.__view = view = uic.loadUi(os.path.join(sys.path[0], 'views/main.ui'))
 
 		if geometry is not None:
-			width, height, x, y = ([int(x) for x in geometry.replace('+', ' +').replace('-', ' -').replace('x', ' ').split()] + [100] * 4)[:4]
+			width, height, x, y = ([int(x) for x in geometry.replace('+', ' +').replace('-', ' -').replace('x', ' ').split()] + [60] * 4)[:4]
 			x = x + (0 if x >= 0 else QtWidgets.QApplication.desktop().screenGeometry(QtWidgets.QApplication.desktop().primaryScreen()).width() - width)
 			y = y + (0 if y >= 0 else QtWidgets.QApplication.desktop().screenGeometry(QtWidgets.QApplication.desktop().primaryScreen()).height() - height)
 			view.setGeometry(x, y, width, height)
@@ -491,7 +492,7 @@ class MainController(AbstractController):
 							filename = 'command'
 
 						text[1] += '' + (self._level_separator + self._level_passive_point) * (len(line) - len(line.lstrip())) + self._level_separator + self._level_active_point + ' '
-						icons[2] = QtGui.QPixmap(os.path.join(sys.path[0], 'images/16/{}.png'.format(filename)))
+						icons[2] = self.__load_pixmap(os.path.join(sys.path[0], 'images/16/{}.png'.format(filename)))
 						text[2] += event['type'].replace(filename, '').strip('_')
 
 					if 'value' in event:
@@ -520,10 +521,10 @@ class MainController(AbstractController):
 						for pattern_path in patterns_paths:
 							if not os.path.exists(pattern_path):
 								logging.getLogger(__name__).error('Pattern not exists: %s', pattern_path.rsplit(os.path.sep, 1)[1])
-						pixmaps = [QtGui.QPixmap(x if os.path.exists(x) else os.path.join(sys.path[0], 'images/16/not-found.png')) for x in patterns_paths]
+						pixmaps = [self.__load_pixmap(x if os.path.exists(x) else os.path.join(sys.path[0], 'images/16/not-found.png')) for x in patterns_paths]
 
 						# Scales pixmaps in order to prevent it to be found on a screen-shot
-						pixmaps = [x.scaled(QtCore.QSize(1.25 * x.width(), 1.25 * x.height()), QtCore.Qt.IgnoreAspectRatio) for x in pixmaps]
+						pixmaps = [x.scaled(QtCore.QSize(2. * x.width(), 2. * x.height()), QtCore.Qt.IgnoreAspectRatio) for x in pixmaps]
 
 						# Stores a combined pixmap somewhere in order to prevent its destroying
 						entry._combined_pixmap = combined_pixmap = QtGui.QPixmap(
@@ -660,16 +661,19 @@ class MainController(AbstractController):
 				with self._with_status('Please wait...'):
 					process.wait()
 				exit_code = process.returncode
-				if state_model.autoexit:
-					# raise Exception('Subprocess was terminated with exit code %s', exit_code)
-					if exit_code:
-						logging.getLogger(__name__).error('Subprocess was terminated with exit code %s', exit_code)
-					else:
-						logging.getLogger(__name__).info('Subprocess was terminated')
-					QtWidgets.QApplication.exit(exit_code)
+
+				if exit_code:
+					logging.getLogger(__name__).error('Subprocess was terminated with exit code %s', exit_code)
 				else:
-					logging.getLogger(__name__).info('Subprocess is terminated with exit code %s', exit_code)
+					logging.getLogger(__name__).info('Subprocess was terminated')
+
+				if state_model.autostop and exit_code:
+					pass
+				elif state_model.autoexit:
+					# raise Exception('Subprocess was terminated with exit code %s', exit_code)
+					QtWidgets.QApplication.exit(exit_code)
 				state_model.process = None
+
 			is_alive_thread = threading.Thread(target=check_if_alive)
 			is_alive_thread.daemon = True
 			is_alive_thread.start()
@@ -883,6 +887,13 @@ class MainController(AbstractController):
 					command = 'gimp ' + ' '.join(pipes.quote(x) for x in patterns)
 					subprocess.check_output(command, shell=True)
 
+	@staticmethod
+	def __load_pixmap(path):
+		pixmap = QtGui.QPixmap()
+		if not pixmap.load(path):
+			raise Exception('Exception during loading pixmap from "{path}"'.format(**locals()))
+		return pixmap
+
 
 def run_init():
 	"""Shows pyguibot Qt GUI."""
@@ -893,8 +904,9 @@ def run_init():
 	parser.add_argument('-v', '--verbose', action='count', help='Raises logging level')
 	parser.add_argument('-g', '--geometry', help='Sets window geometry (position and size). Format: <width>x<height>[+-]<x>[+-]<y>.')
 	parser.add_argument('-a', '--autorun', action='store_true', help='Starts test automatically after launch')
+	parser.add_argument('-s', '--autostop', action='store_true', help='Stops automatically if test terminates with a failure, prevents exit')
 	parser.add_argument('-e', '--autoexit', action='store_true', help='Exits automatically if test terminates')
-	parser.add_argument('-s', '--with-screencast', action='store_true', help='Writes a video screencast')
+	parser.add_argument('-r', '--with-screencast', action='store_true', help='Writes a video screencast')
 	parser.add_argument('-d', '--disable-observer', action='store_true', help='Disables observing data for external updates and reloading them')
 	parser.add_argument('--shell-command-prefix', default='', help='Adds prefix to every event named "shell_command"')
 	parser.add_argument('PATH', nargs='?', help='Directory path where to load tests')

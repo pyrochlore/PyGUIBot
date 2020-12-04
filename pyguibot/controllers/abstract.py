@@ -1,7 +1,7 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python" "-B" "$0" "$@"
+"exec" "python2" "-B" "$0" "$@"
 # (c) gehrmann
 
 from __future__ import division
@@ -16,7 +16,12 @@ import sys
 import textwrap
 import time
 
-import cv2
+try:
+	import cv2
+except ImportError:
+	logging.getLogger(__name__).error('Library is not found. Try to install it using:')
+	logging.getLogger(__name__).error('  # pip2 install opencv-python')
+	raise
 
 if __name__ == '__main__':
 	# Set utf-8 (instead of latin1) as default encoding for every IO
@@ -115,7 +120,7 @@ class AbstractController(object):
 					time.sleep(2.)
 
 					# Makes screen shot
-					Screen.get_screenshot().save(pattern_path)
+					Screen.make_screenshot(pattern_path)
 
 					# Crops screen shot
 					self._interactive_crop_image(pattern_path)
@@ -123,12 +128,13 @@ class AbstractController(object):
 					event['patterns'] = [pattern_filename]
 
 					# Asks for wait timeout
-					timeout = self._interactive_input_value(message="Enter wait timeout")
-					if timeout:
-						try:
-							event['timeout'] = float(timeout)
-						except ValueError:
-							pass
+					event['timeout'] = float(0.0)
+					# timeout = self._interactive_input_value(message="Enter wait timeout")
+					# if timeout:
+					#     try:
+					#         event['timeout'] = float(timeout)
+					#     except ValueError:
+					#         pass
 
 				# Saves event
 				logging.getLogger(__name__).info(repr(event))

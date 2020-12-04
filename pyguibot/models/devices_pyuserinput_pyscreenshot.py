@@ -1,19 +1,25 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
 # vim: noexpandtab
-"exec" "python" "-B" "$0" "$@"
+"exec" "python2" "-B" "$0" "$@"
 # (c) gehrmann
 
 from __future__ import division
 import logging
 import math
 import os
+import subprocess
 import sys
 import time
 
 # import pyautogui.screenshotUtil
-import pykeyboard
-import pymouse
+try:
+	import pykeyboard
+	import pymouse
+except ImportError:
+	logging.getLogger(__name__).error('Library is not found. Try to install it using:')
+	logging.getLogger(__name__).error('  # pip2 install pyuserinput')
+	raise
 # import pyscreenshot
 
 if __name__ == '__main__':
@@ -40,7 +46,7 @@ __doc__ = """"""
 
 class Screen(object):
 	@classmethod
-	def get_screenshot(cls):
+	def make_screenshot(cls, path):
 		"""Makes screenshot, returns PIL-image"""
 		# screenshot = pyscreenshot.grab()  # ~1.1s
 		# screenshot = PIL.ImageGrab.grab()
@@ -50,26 +56,44 @@ class Screen(object):
 		#     childprocess=False,  # Allows not to re-initialize wx.App
 		# )
 
-		import wx
-		from PIL import Image as PIL_Image
-		if not hasattr(cls, '_wx_application'):
-			cls._wx_application = wx.App()
-		screen = wx.ScreenDC()
-		size = screen.GetSize()
-		_bitmap = wx.EmptyBitmap(size[0], size[1])
-		_memory = wx.MemoryDC(_bitmap)
-		_memory.Blit(0, 0, size[0], size[1], screen, 0, 0)
-		del _memory
-		_wx_image = wx.ImageFromBitmap(_bitmap)
-		screenshot = PIL_Image.new('RGB', (_wx_image.GetWidth(), _wx_image.GetHeight()))
-		if hasattr(PIL_Image, 'frombytes'):
-			# for Pillow
-			screenshot.frombytes(_wx_image.GetData())
-		else:
-			# for PIL
-			screenshot.fromstring(_wx_image.GetData())
+		# Does not work correctly: caches content!
+		# import wx
+		# from PIL import Image as PIL_Image
+		# if not hasattr(cls, '_wx_application'):
+		#     cls._wx_application = wx.App()
+		# screen = wx.ScreenDC()
+		# size = screen.GetSize()
+		# _bitmap = wx.EmptyBitmap(size[0], size[1])
+		# _memory = wx.MemoryDC(_bitmap)
+		# _memory.Blit(0, 0, size[0], size[1], screen, 0, 0)
+		# del _memory
+		# _wx_image = wx.ImageFromBitmap(_bitmap)
+		# screenshot = PIL_Image.new('RGB', (_wx_image.GetWidth(), _wx_image.GetHeight()))
+		# if hasattr(PIL_Image, 'frombytes'):
+		#     # for Pillow
+		#     screenshot.frombytes(_wx_image.GetData())
+		# else:
+		#     # for PIL
+		#     screenshot.fromstring(_wx_image.GetData())
 
-		return screenshot
+		command = 'scrot "{}"'.format(path)
+		try:
+			result = subprocess.check_output(command, shell=True)
+		except subprocess.CalledProcessError as e:
+			logging.getLogger(__name__).error('e=' + '%s', e)
+
+	@classmethod
+	def get_screenshot(cls):
+		import tempfile
+		from PIL import Image as PIL_Image
+
+		with tempfile.NamedTemporaryFile(delete=True) as dst:
+			try:
+			dst.close()
+				cls.make_screenshot(dst.name)
+				return PIL_Image.open(dst.name)
+			finally:
+				os.unlink(dst.name)
 
 	# def _print_backends():
 	#     """Prints out availables backends"""
