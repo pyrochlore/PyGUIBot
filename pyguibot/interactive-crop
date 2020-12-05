@@ -1,6 +1,6 @@
 #!/bin/sh
 # -*- coding: utf-8 -*-
-# vim: noexpandtab ft=python
+# vim: ft=python noexpandtab
 "exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
@@ -76,7 +76,7 @@ class Controller(object):
 			frame_2.SetSizer(wx.BoxSizer(wx.HORIZONTAL))
 			window.GetSizer().Add(frame_2, proportion=0, flag=wx.ALL | wx.EXPAND, border=10)
 			if True:  # Extra indent for sub-widgets
-				frame_2.GetSizer().AddSpacer((0, 0), 1, wx.EXPAND, 0)
+				frame_2.GetSizer().Add((0, 0), 1, wx.EXPAND, 0)
 
 				button = wx.Button(parent=frame_2, id=wx.ID_CANCEL)
 				frame_2.GetSizer().Add(button, proportion=0, flag=wx.LEFT, border=10)
@@ -98,10 +98,14 @@ class Controller(object):
 		dc.DrawBitmap(self._image_bitmap, 0, 0)
 
 		# Draws red rectangle
-		rectangle = wx.RectPP(self._from_point, self._to_point)
 		dc.SetPen(wx.Pen('red', 1))
 		dc.SetBrush(wx.Brush(wx.Colour(0xC0, 0xC0, 0xC0, 0x80)) if 'wxMac' in wx.PlatformInfo else wx.TRANSPARENT_BRUSH)
-		dc.DrawRectangleRect(rectangle)
+		dc.DrawRectangle(
+			min(self._from_point[0], self._to_point[0]),
+			min(self._from_point[1], self._to_point[1]),
+			max(self._from_point[0], self._to_point[0]) - min(self._from_point[0], self._to_point[0]),
+			max(self._from_point[1], self._to_point[1]) - min(self._from_point[1], self._to_point[1]),
+		)
 
 	def __on_mouse_left_pressed(self, event):
 		self._frame.CaptureMouse()
