@@ -165,7 +165,7 @@ def run_controller():
 				geometry=geometry,
 				dst=args.path,
 			)
-			subprocess.check_output(command, shell=True)
+			subprocess.check_output(command, shell=True, text=True)
 
 
 def main():

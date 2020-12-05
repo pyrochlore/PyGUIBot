@@ -108,8 +108,8 @@ class RestoreController(AbstractController):
 			)
 			logging.getLogger(__name__).info('Screen is recording into "%s"', path)
 			# logging.getLogger(__name__).debug('Command: %s', command)
-			# process = subprocess.Popen(command, shell=True, preexec_fn=os.setsid, stdout=open(os.devnull, 'w'), stderr=open(os.devnull, 'w'))
-			process = subprocess.Popen(command, shell=True, preexec_fn=os.setsid, stdout=open(os.devnull, 'w'), stderr=sys.stderr)
+			# process = subprocess.Popen(command, shell=True, text=True, preexec_fn=os.setsid, stdout=open(os.devnull, 'w'), stderr=open(os.devnull, 'w'))
+			process = subprocess.Popen(command, shell=True, text=True, preexec_fn=os.setsid, stdout=open(os.devnull, 'w'), stderr=sys.stderr)
 
 			# Waits for a stop
 			while screen_record_is_running:
@@ -215,7 +215,7 @@ class RestoreController(AbstractController):
 							logging.getLogger(__name__).debug('Command: %s', shell_command)
 							process = subprocess.Popen(
 								shell_command,
-								shell=True,
+								shell=True, text=True,
 								stdout=sys.stdout,
 								stderr=sys.stderr,
 								env=dict(os.environ, **dict(UPLOAD_PATH=self._tmp_path)),

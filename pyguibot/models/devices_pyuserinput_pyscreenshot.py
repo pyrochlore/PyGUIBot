@@ -81,7 +81,7 @@ class Screen(object):
 
 		command = 'scrot "{}"'.format(path)
 		try:
-			result = subprocess.check_output(command, shell=True)
+			result = subprocess.check_output(command, shell=True, text=True)
 		except subprocess.CalledProcessError as e:
 			logging.getLogger(__name__).error('e=' + '%s', e)
 

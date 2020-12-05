@@ -471,7 +471,7 @@ class WxGuiController(object):
 
 			state_model.process = process = subprocess.Popen(
 				cwd=os.getcwd(),
-				shell=True, preexec_fn=os.setsid, args=' '.join([str(x) for x in command]),
+				shell=True, text=True, preexec_fn=os.setsid, args=' '.join([str(x) for x in command]),
 				bufsize=1,
 				stdin=subprocess.PIPE,
 				stdout=subprocess.PIPE,
@@ -531,7 +531,7 @@ class WxGuiController(object):
 
 			state_model.process = process = subprocess.Popen(
 				cwd=os.getcwd(),
-				shell=True, preexec_fn=os.setsid, args=' '.join([str(x) for x in command]),
+				shell=True, text=True, preexec_fn=os.setsid, args=' '.join([str(x) for x in command]),
 				bufsize=1,
 				stdin=subprocess.PIPE,
 				stdout=subprocess.PIPE,

@@ -613,7 +613,7 @@ class MainController(AbstractController):
 
 			state_model.process = process = subprocess.Popen(
 				cwd=os.getcwd(),
-				shell=True, preexec_fn=os.setsid, args=' '.join([str(x) for x in command]),
+				shell=True, text=True, preexec_fn=os.setsid, args=' '.join([str(x) for x in command]),
 				bufsize=1,
 				stdin=subprocess.PIPE,
 				stdout=subprocess.PIPE,
@@ -623,7 +623,7 @@ class MainController(AbstractController):
 			def read_stdout():
 				# while process.poll() is None and not process.stdout.closed and process.returncode is None:
 				#     line = process.stdout.readline().rstrip()
-				for line in (x.rstrip().decode() for x in iter(process.stdout.readline, '')):
+				for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
 					if not line:  # Probably process was terminated
 						break
 					try:
@@ -640,7 +640,7 @@ class MainController(AbstractController):
 			def read_stderr():
 				# while process.poll() is None and not process.stderr.closed and process.returncode is None:
 				#     line = process.stderr.readline().rstrip()
-				for line in (x.rstrip().decode() for x in iter(process.stderr.readline, '')):
+				for line in (x.rstrip() for x in iter(process.stderr.readline, '')):
 					if not line:  # Probably process was terminated
 						break
 					try:
@@ -720,7 +720,7 @@ class MainController(AbstractController):
 
 			state_model.process = process = subprocess.Popen(
 				cwd=os.getcwd(),
-				shell=True, preexec_fn=os.setsid, args=' '.join([str(x) for x in command]),
+				shell=True, text=True, preexec_fn=os.setsid, args=' '.join([str(x) for x in command]),
 				bufsize=1,
 				stdin=subprocess.PIPE,
 				stdout=subprocess.PIPE,
@@ -899,7 +899,7 @@ class MainController(AbstractController):
 				patterns = [xx for x in events for xx in x.get('patterns', [])]
 				if patterns:
 					command = 'gimp ' + ' '.join(pipes.quote(x) for x in patterns)
-					subprocess.check_output(command, shell=True)
+					subprocess.check_output(command, shell=True, text=True)
 
 	@staticmethod
 	def __load_pixmap(path):

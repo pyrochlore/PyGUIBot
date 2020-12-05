@@ -188,7 +188,7 @@ class AbstractController(object):
 				""" + ' '.join(['"{}"'.format(x) for x in event_types]) + """
 			"""
 		).replace('\n', ' \\\n')
-		result = subprocess.check_output(command, shell=True)
+		result = subprocess.check_output(command, shell=True, text=True)
 		result = result.rstrip()  # Removes trailing newline
 
 		return result
@@ -201,7 +201,7 @@ class AbstractController(object):
 				--text '""" + message + """'
 			"""
 		).replace('\n', ' \\\n')
-		result = subprocess.check_output(command, shell=True)
+		result = subprocess.check_output(command, shell=True, text=True)
 		result = result.rstrip()  # Removes trailing newline
 
 		return result
@@ -218,7 +218,7 @@ class AbstractController(object):
 				value or '',
 			)
 		).replace('\n', ' \\\n')
-		result = subprocess.check_output(command, shell=True)
+		result = subprocess.check_output(command, shell=True, text=True)
 		result = result.rstrip('\r\n')  # Removes trailing newline
 
 		return result
@@ -233,7 +233,7 @@ class AbstractController(object):
 				--text "Enter key sequence, confirm it with mouse."
 			"""
 		).replace('\n', ' \\\n')
-		subprocess.check_output(command, shell=True)
+		subprocess.check_output(command, shell=True, text=True)
 		return
 
 	@staticmethod
@@ -245,7 +245,7 @@ class AbstractController(object):
 				"{path}"
 			"""
 		).replace('\n', '\\\n').format(application_path=sys.path[0], path=path, offset=50)
-		result = subprocess.check_output(command, shell=True)
+		result = subprocess.check_output(command, shell=True, text=True)
 
 
 class _DefaultDict(dict):
