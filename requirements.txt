@@ -1,4 +1,5 @@
 monotonic
+numexpr
 numpy
 opencv-python
 pyuserinput

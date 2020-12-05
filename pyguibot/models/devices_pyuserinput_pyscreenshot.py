@@ -191,8 +191,8 @@ class Mouse(pymouse.PyMouse):
 			dx = length_x / steps
 			dy = length_y / steps
 			for step in range(int(steps)):
-				_x = src_x + dx * step
-				_y = src_y + dy * step
+				_x = int(src_x + dx * step)
+				_y = int(src_y + dy * step)
 
 				time.sleep(self._delay)
 				super(Mouse, self).move(_x, _y)
