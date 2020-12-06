@@ -239,7 +239,18 @@ class MainController(AbstractController):
 
 		indices = set([x.row() for x in tree.selectedIndexes()])
 		if indices:
-			self._delete(index=min(indices), count=len(indices))
+			count = len(indices)
+			if QtWidgets.QMessageBox.question(
+					self.__view,
+					'Confirmation dialog',
+					('{count} ' + ('entry' if count == 1 else 'entries') + ' will be removed!').format(**locals()),
+					(
+						0
+						|QtWidgets.QMessageBox.Cancel
+						|QtWidgets.QMessageBox.Ok
+					),
+			) == QtWidgets.QMessageBox.Ok:
+				self._delete(index=min(indices), count=len(indices))
 
 	def __on_commands_tree_double_clicked(self, index):
 		state_model = self._state_model
