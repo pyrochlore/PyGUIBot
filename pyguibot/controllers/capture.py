@@ -69,7 +69,7 @@ class CaptureController(AbstractController):
 					pass
 
 				# Only one running thread is allowed. Skips if it is already running.
-				if self._log_event_thread is not None and self._log_event_thread.isAlive():
+				if self._log_event_thread is not None and self._log_event_thread.is_alive():
 					pass
 				else:
 					self._log_event_thread = thread = threading.Thread(target=self._create, kwargs=dict(dst_path=self._dst_path, dst=self._dst))

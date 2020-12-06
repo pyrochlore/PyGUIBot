@@ -9,6 +9,7 @@ import datetime
 import logging
 import numpy
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -77,6 +78,12 @@ class AbstractController(object):
 
 				elif event_type == 'keyboard_type':
 					event['value'] = self._interactive_input_value(message='Enter string to type')
+
+				elif event_type == 'equation':
+					event['value'] = self._interactive_input_value(message='Enter equation (for example, X = {X} + 1)')
+
+				elif event_type == 'condition':
+					event['value'] = self._interactive_input_value(message='Enter condition (for example, {X} == 5)')
 
 				elif event_type == 'shell_command':
 					event['value'] = self._interactive_input_value(message='Enter shell command')
@@ -157,11 +164,22 @@ class AbstractController(object):
 		return datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S.%f')[:-3]
 
 	@staticmethod
+	def _substitute_variables(value, env=None):
+		"""Replaces every {key} (or {env[key]}) with its environment variable"""
+		value = re.sub('\{(\w+)\}', '{env[\\1]}', value)  # Allows to write {X} instead of {env[X]}
+		value = value.format(
+			env=(os.environ if env is None else env),
+		)
+		return value
+
+	@staticmethod
 	def _interactive_select_event_type():
 		event_types = (
 			'delay',
 			'jump',
 			'break',
+			'equation',
+			'condition',
 			'shell_command',
 			'keyboard_tap',
 			'keyboard_press',

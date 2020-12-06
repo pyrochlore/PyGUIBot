@@ -13,6 +13,7 @@ import datetime
 import logging
 import multiprocessing
 import numpy
+import numexpr
 import os
 import shutil
 import signal
@@ -42,7 +43,7 @@ if __name__ == '__main__':
 	)
 logging.getLogger(__name__).setLevel(logging.DEBUG)
 
-from controllers.abstract import AbstractController
+from controllers.abstract import _DefaultDict, AbstractController
 from helpers.timer import Timer
 from models.devices import (
 	Keyboard,
@@ -60,6 +61,10 @@ except ImportError:
 	print('', file=sys.stderr)
 	print('', file=sys.stderr)
 	raise
+
+
+class Break(Exception):
+	pass
 
 
 class RestoreController(AbstractController):
@@ -167,7 +172,7 @@ class RestoreController(AbstractController):
 								patterns_paths = [
 									os.path.join(
 										os.path.dirname(os.path.realpath(self._src_path)) if self._src_path is not None else '.',
-										x.format(env=os.environ)
+										self._substitute_variables(x)
 									)
 									for x in event['patterns']
 								]
@@ -198,20 +203,39 @@ class RestoreController(AbstractController):
 						logging.getLogger(__name__).debug('Making event %s', event['type'])
 
 						if event['type'] == 'delay':
-							time.sleep(float(event['value']))
+							value = self._substitute_variables(event['value'])
+							time.sleep(float(value))
 						elif event['type'] in ('jump', 'break'):
 							time.sleep(.2)
-							if str(event['value'])[:1] in '-+':
-								event['level'] += 1 + int(event['value'])
+							value = self._substitute_variables(event['value'])
+							if str(value)[:1] in '-+':
+								event['level'] += 1 + int(value)
 							else:
-								event['level'] = int(event['value'])
-							raise LookupError('{type}ing to {event[level]} {message}.'.format(
+								event['level'] = int(value)
+							raise Break('{type}ing to {event[level]} with{message}.'.format(
 								type=event['type'].title(),
-								message='with message "{event[message]}"'.format(**locals()) if 'message' in event else 'with no message',
+								message=' message "{event[message]}"'.format(**locals()) if 'message' in event else ' no message',
 								**locals()
 							))
+						elif event['type'] == 'equation':
+							key, equation = [x.strip() for x in event['value'].split('=', 1)]
+							equation = self._substitute_variables(equation, env=_DefaultDict(
+								os.environ,
+								default=lambda k: (None),  # Allows to write "X = {X} or 0" in order to initiate variable X
+							))
+							value = str(numexpr.evaluate(equation))
+							os.environ[key] = value
+							print('Env={}'.format({key: value}), file=sys.stderr); sys.stderr.flush()
+						elif event['type'] == 'condition':
+							condition = self._substitute_variables(event['value'])
+							value = bool(numexpr.evaluate(condition))
+							if not value:
+								raise Break('Condition not satisfied, breaking with{message}.'.format(
+									message=' message "{event[message]}"'.format(**locals()) if 'message' in event else ' no message',
+									**locals()
+								))
 						elif event['type'] == 'shell_command':
-							shell_command = shell_command_prefix + event['value'].format(env=os.environ)
+							shell_command = shell_command_prefix + self._substitute_variables(event['value'])
 							logging.getLogger(__name__).debug('Command: %s', shell_command)
 							process = subprocess.Popen(
 								shell_command,
@@ -223,21 +247,22 @@ class RestoreController(AbstractController):
 							if event.get('wait', True):
 								exit_code = process.wait()
 								if exit_code:
-									raise LookupError('Command was terminated with exit code {exit_code}.'.format(**locals()))
+									raise Break('Command was terminated with exit code {exit_code}.'.format(**locals()))
 						elif event['type'] == 'keyboard_press':
 							time.sleep(.2)
-							self._tap(event['value'], delay=.08)
+							self._tap(self._substitute_variables(event['value']), delay=.08)
 						elif event['type'] == 'keyboard_release':
 							time.sleep(.2)
-							self._tap(event['value'], delay=.08)
+							self._tap(self._substitute_variables(event['value']), delay=.08)
 						elif event['type'] == 'keyboard_tap':
 							time.sleep(.2)
-							self._tap(event['value'], delay=.08)
+							self._tap(self._substitute_variables(event['value']), delay=.08)
 						elif event['type'] == 'keyboard_type':
 							time.sleep(.2)
-							Keyboard.type(event['value'].format(env=os.environ), interval=.15)
+							value = self._substitute_variables(event['value'])
+							Keyboard.type(value, interval=.15)
 							# print >>sys.stderr, 'event["value"]=', event["value"]; sys.stderr.flush()  # FIXME: must be removed/commented
-							# for character in event['value']:
+							# for character in self._substitute_variables(event['value']):
 							#     Keyboard.press(character)
 							#     print >>sys.stderr, '{} pressed'.format(character); sys.stderr.flush()  # FIXME: must be removed/commented
 							#     time.sleep(.25)
@@ -267,6 +292,7 @@ class RestoreController(AbstractController):
 							Mouse.click(event_x, event_y, button=1, count=1)
 							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_double_click':
+							time.sleep(.2)
 							Mouse.slide(event_x, event_y)
 							time.sleep(.2)
 							Mouse.click(event_x, event_y, button=1, count=1)
@@ -274,21 +300,22 @@ class RestoreController(AbstractController):
 							Mouse.click(event_x, event_y, button=1, count=2)
 							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_right_click':
+							time.sleep(.2)
 							Mouse.slide(event_x, event_y)
 							time.sleep(.2)
 							Mouse.click(event_x, event_y, button=2, count=1)
 							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_scroll':
-							Mouse.slide(event_x, event_y)
 							time.sleep(.2)
-							Mouse.scroll(event_x, event_y)
+							Mouse.scroll(horizontal=event_x, vertical=event_y)
 							time.sleep(.2)  # Waits till reaction is shown
 
 						print('Status={}'.format(dict(index=index, code='completed')), file=sys.stderr); sys.stderr.flush()
 
-					except LookupError as e:
+					except Break as e:
+						logging.getLogger(__name__).warning('e=' + '%s', e)
 						print('Status={}'.format(dict(index=index, code=(
-							'completed' if event['type'] == 'jump' else 'failed'
+							'completed' if event['type'] in ('jump', 'condition') else 'failed'
 						))), file=sys.stderr); sys.stderr.flush()
 						if event['level'] > 0:
 							logging.getLogger(__name__).debug('Skipping level %s for %s', event['level'], event)
@@ -426,7 +453,7 @@ class RestoreController(AbstractController):
 					# cv2.imshow(window_title, result)
 					# cv2.waitKey(0)
 					# cv2.destroyAllWindows()
-				raise LookupError('Timeout is reached ({}). Patterns "{}" are not found.'.format(timeout, paths))
+				raise Break('Timeout is reached ({}). Patterns "{}" are not found.'.format(timeout, paths))
 			continue
 
 	@staticmethod

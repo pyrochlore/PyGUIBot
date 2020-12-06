@@ -20,6 +20,7 @@ import datetime
 import logging
 import os
 import pipes
+import re
 import signal
 import subprocess
 import sys
@@ -506,8 +507,14 @@ class MainController(AbstractController):
 						text[2] += event['type'].replace(filename, '').strip('_')
 
 					if 'value' in event:
-						text[3] += (text[3] and ', ') + '"' + event['value'].format(
-							env=_DefaultDict(os.environ, default=lambda k: ('{{env[{}]}}'.format(k))),
+						value = event['value']
+						value = re.sub('\{(\w+)\}', '{{\\1}}({env[\\1]})', value)  # Allows to see a variable name with its current value
+						text[3] += (text[3] and ', ') + '"' + value.format(
+							env=_DefaultDict(
+								os.environ,
+								# default=lambda k: ('{{env[{}]}}'.format(k)),
+								default=lambda k: ('<none>'),  # Allows to see current value (or <none> if not set)
+							),
 						) + '"'
 
 					if 'timeout' in event:
@@ -657,6 +664,12 @@ class MainController(AbstractController):
 										entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
 									tree.scrollToItem(entry, tree.EnsureVisible)
 								tree.viewport().update()  # Force update (fix for Qt5)
+						if line.startswith('Env='):
+							value = line.split('=', 1)[1]
+							if value.startswith('{'):
+								env = ast.literal_eval(value)
+								os.environ.update(env)
+								Caller.call_once_after(0, self._fill)
 						elif '[DEBUG]  ' in line:
 							logging.getLogger(__name__).debug(line)
 						elif '[INFO]  ' in line:
@@ -805,7 +818,7 @@ class MainController(AbstractController):
 
 		# Saves lines
 		with open(events_path, 'w') as dst:
-			print(''.join(lines), end=' ', file=dst)
+			print(''.join(lines), end='', file=dst)
 
 	def _delete(self, index, count):
 		with self._with_data() as lines:
