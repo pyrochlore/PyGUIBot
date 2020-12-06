@@ -509,6 +509,7 @@ class MainController(AbstractController):
 			self._fill_tree_entry(*args)
 
 	def _fill_tree_entry(self, index, entry, line):
+		state_model = self._state_model
 		view = self.__view
 		tree = view.commands_tree
 
@@ -571,7 +572,7 @@ class MainController(AbstractController):
 			pixmaps = [self.__load_pixmap(x if os.path.exists(x) else os.path.join(sys.path[0], 'images/16/not-found.png')) for x in patterns_paths]
 
 			# Scales pixmaps in order to prevent it to be found on a screen-shot
-			pixmaps = [x.scaled(QtCore.QSize(2. * x.width(), 2. * x.height()), QtCore.Qt.IgnoreAspectRatio) for x in pixmaps]
+			pixmaps = [x.scaled(QtCore.QSize(int(2. * x.width()), int(2. * x.height())), QtCore.Qt.IgnoreAspectRatio) for x in pixmaps]
 
 			# Stores a combined pixmap somewhere in order to prevent its destroying
 			entry._combined_pixmap = combined_pixmap = QtGui.QPixmap(
