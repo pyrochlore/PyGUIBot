@@ -19,9 +19,9 @@ Can be executed both as a GUI and as a command line tool.
 Screenshots
 ===========
 
-![](screenshots/screenshot_1.png){ width=300 height=300 } 
-![](screenshots/screenshot_2.png){ width=300 height=300 } 
-![](screenshots/screenshot_3.png){ width=300 height=300 } 
+![](screenshots/screenshot_1.png) 
+![](screenshots/screenshot_2.png) 
+![](screenshots/screenshot_3.png) 
 
 
 Requirements
@@ -38,17 +38,17 @@ How to run
 
 1. Create a local copy of the repository
 
-> $ git clone https://bitbucket.org/gehrmann/pyguibot ./pyguibot-trunk
+> git clone https://bitbucket.org/gehrmann/pyguibot ./pyguibot-trunk
 
 2. Launch with root-previleges (uses python/pip and apt):
 
-> $ ./install-requirements.sh
+> ./install-requirements.sh
 
 or install them manually.
 
 3. Launch program using start script:
 
-> $ ./pyguibot
+> ./pyguibot
 
 
 Documentation
@@ -80,7 +80,7 @@ Usage of variables
 
 Variables can be initialized from program environment, therefore you can launch the program as follows:
 
-> $ X=5 ./pyguibot
+> X=5 ./pyguibot
 
 You can initialize it also in action "equation" like:
 
