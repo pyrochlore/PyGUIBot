@@ -83,7 +83,8 @@ class MainController(AbstractController):
 		state_model.shell_command_prefix = shell_command_prefix
 		state_model.status = 'Click "Play" to (re)run or "Record" to add new events...'
 
-		self._state_colors = dict(ready=None, current='#fc0', completed='#6c6', failed='#f00')
+		self._tree_entries_to_lines = []  # Allows to update tree entries separately without re-filling tree itself
+		self._state_colors = dict(ready=None, current='#feb', completed='#cfc', failed='#fcc')
 		self._level_separator = ''  # Can be ['⎯']
 		self._level_passive_point = '◯'  # Can be ['◯']
 		self._level_active_point = '⬤'  # Can be ['⬤']
@@ -449,6 +450,7 @@ class MainController(AbstractController):
 		return str(index)
 
 	def _fill(self):
+		tree_entries_to_lines = self._tree_entries_to_lines
 		state_model = self._state_model
 		view = self.__view
 		tree = view.commands_tree
@@ -456,10 +458,10 @@ class MainController(AbstractController):
 		selected_rows = [x.row() for x in tree.selectedIndexes()]
 
 		logging.getLogger(__name__).info('Filling...')
-		max_level = 0
 		scroll_y_position = tree.verticalScrollBar().value()  # Save scroll-y position
 		tree.setIconSize(QtCore.QSize(65535, 64))
 		tree.clear()
+		tree_entries_to_lines[:] = []
 
 		# Opens file with commands or reads from stdin
 		if state_model.src_path is None and sys.stdin.isatty():
@@ -478,103 +480,15 @@ class MainController(AbstractController):
 			with open(state_model.src_path) if state_model.src_path is not None else sys.stdin as src:
 				for index, line in enumerate((x.rstrip() for x in src), start=1):
 
-					event = self._restore(line)
-					max_level = max(max_level, event['level'])
-
 					entry = QtWidgets.QTreeWidgetItem(tree)
 					entry.setFlags(entry.flags() ^ QtCore.Qt.ItemIsDropEnabled)  # Disallow dropping inside item
 
-					text = {k: '' for k in range(tree.columnCount())}
-					icons = dict()
-
-					text[0] += '{index}. '.format(**locals())
-					if 'comments' in event:  # If line is commented
-						text[0] += event['comments'].lstrip()
-						entry.setFirstColumnSpanned(True)
-						entry.setForeground(0, QtGui.QBrush(QtGui.QColor('#666')))
-
-					if 'type' in event:
-						filename = 'unknown'
-						if event['type'].startswith('keyboard_'):
-							filename = 'keyboard'
-						elif event['type'].startswith('mouse_'):
-							filename = 'mouse'
-						elif event['type'].endswith('_command'):
-							filename = 'command'
-
-						text[1] += '' + (self._level_separator + self._level_passive_point) * (len(line) - len(line.lstrip())) + self._level_separator + self._level_active_point + ' '
-						icons[2] = self.__load_pixmap(os.path.join(sys.path[0], 'images/16/{}.png'.format(filename)))
-						text[2] += event['type'].replace(filename, '').strip('_')
-
-					if 'value' in event:
-						value = event['value']
-						value = re.sub('\{(\w+)\}', '{{\\1}}({env[\\1]})', value)  # Allows to see a variable name with its current value
-						text[3] += (text[3] and ', ') + '"' + value.format(
-							env=_DefaultDict(
-								os.environ,
-								# default=lambda k: ('{{env[{}]}}'.format(k)),
-								default=lambda k: ('<none>'),  # Allows to see current value (or <none> if not set)
-							),
-						) + '"'
-
-					if 'timeout' in event:
-						text[3] += (text[3] and ', ') + 'wait {}s'.format(event['timeout'])
-
-					if 'message' in event:
-						text[3] += (text[3] and ', ') + '"' + event['message'] + '"'
-
-					if event is not None and 'patterns' in event:
-						border = 1
-						spacing = 2
-						patterns_paths = [
-							os.path.join(
-								(os.path.dirname(os.path.realpath(state_model.src_path)) if state_model.src_path is not None else '.'),
-								x.format(
-									env=_DefaultDict(os.environ, default=lambda k: ('{{env[{}]}}'.format(k))),
-								)
-							)
-								for x in event['patterns']
-							]
-						for pattern_path in patterns_paths:
-							if not os.path.exists(pattern_path):
-								logging.getLogger(__name__).error('Pattern not exists: %s', pattern_path.rsplit(os.path.sep, 1)[1])
-						pixmaps = [self.__load_pixmap(x if os.path.exists(x) else os.path.join(sys.path[0], 'images/16/not-found.png')) for x in patterns_paths]
-
-						# Scales pixmaps in order to prevent it to be found on a screen-shot
-						pixmaps = [x.scaled(QtCore.QSize(2. * x.width(), 2. * x.height()), QtCore.Qt.IgnoreAspectRatio) for x in pixmaps]
-
-						# Stores a combined pixmap somewhere in order to prevent its destroying
-						entry._combined_pixmap = combined_pixmap = QtGui.QPixmap(
-							2 * border + spacing * (len(pixmaps) + 1) + sum(x.width() for x in pixmaps),
-							2 * border + 2 * spacing + max(x.height() for x in pixmaps),
-						)
-
-						combined_pixmap.fill(QtGui.QColor('#fc0'))
-						painter = QtGui.QPainter(combined_pixmap)
-						painter.setPen(QtGui.QColor('#fff'))
-						painter.drawRect(0, 0, combined_pixmap.width() - 1, combined_pixmap.height() - 1)
-						for _index, x in enumerate(pixmaps):
-							painter.drawPixmap(
-								border + spacing + sum((spacing + pixmaps[x].width()) for x in range(_index)),
-								(combined_pixmap.height() - x.height()) // 2,
-								x,
-							)
-
-						icons[3] = QtGui.QIcon(combined_pixmap)
-
-					# self._tree_items_to_lines[view] = line
-					for _index in range(tree.columnCount()):
-						if _index in text:
-							entry.setText(_index, text[_index])
-							entry.setToolTip(_index, '#{}  {}'.format(index, line))
-							entry.setStatusTip(_index, '#{}  {}'.format(index, line))
-						if _index in icons:
-							entry.setIcon(_index, QtGui.QIcon(icons[_index]))
-							entry.setToolTip(_index, '#{}  {}'.format(index, line))
-							entry.setStatusTip(_index, '#{}  {}'.format(index, line))
+					tree_entries_to_lines.append((index, entry, line))
+					# self._fill_tree_entry(index, entry, line)
 
 					tree.addTopLevelItem(entry)
 
+		self._fill_tree_entries()
 		self._reset_tree_entries_states()
 
 		for index in range(tree.topLevelItemCount()):
@@ -588,6 +502,106 @@ class MainController(AbstractController):
 			tree.resizeColumnToContents(index)
 		tree.verticalScrollBar().setValue(scroll_y_position)  # Restore scroll-y position
 		logging.getLogger(__name__).info('Filled')
+
+	def _fill_tree_entries(self):
+		"""Re-fills tree entries without re-filling the whole tree"""
+		for args in self._tree_entries_to_lines:
+			self._fill_tree_entry(*args)
+
+	def _fill_tree_entry(self, index, entry, line):
+		view = self.__view
+		tree = view.commands_tree
+
+		text = {k: '' for k in range(tree.columnCount())}
+		icons = dict()
+
+		event = self._restore(line)
+
+		text[0] += '{index}. '.format(**locals())
+		if 'comments' in event:  # If line is commented
+			text[0] += event['comments'].lstrip()
+			entry.setFirstColumnSpanned(True)
+			entry.setForeground(0, QtGui.QBrush(QtGui.QColor('#666')))
+
+		if 'type' in event:
+			filename = 'unknown'
+			if event['type'].startswith('keyboard_'):
+				filename = 'keyboard'
+			elif event['type'].startswith('mouse_'):
+				filename = 'mouse'
+			elif event['type'].endswith('_command'):
+				filename = 'command'
+
+			text[1] += '' + (self._level_separator + self._level_passive_point) * (len(line) - len(line.lstrip())) + self._level_separator + self._level_active_point + ' '
+			icons[2] = self.__load_pixmap(os.path.join(sys.path[0], 'images/16/{}.png'.format(filename)))
+			text[2] += event['type'].replace(filename, '').strip('_')
+
+		if 'value' in event:
+			value = event['value']
+			value = re.sub('\{(\w+)\}', '{{\\1}}({env[\\1]})', value)  # Allows to see a variable name with its current value
+			text[3] += (text[3] and ', ') + '"' + value.format(
+				env=_DefaultDict(
+					os.environ,
+					# default=lambda k: ('{{env[{}]}}'.format(k)),
+					default=lambda k: ('<none>'),  # Allows to see current value (or <none> if not set)
+				),
+			) + '"'
+
+		if 'timeout' in event:
+			text[3] += (text[3] and ', ') + 'wait {}s'.format(event['timeout'])
+
+		if 'message' in event:
+			text[3] += (text[3] and ', ') + '"' + event['message'] + '"'
+
+		if event is not None and 'patterns' in event:
+			border = 1
+			spacing = 2
+			patterns_paths = [
+				os.path.join(
+					(os.path.dirname(os.path.realpath(state_model.src_path)) if state_model.src_path is not None else '.'),
+					x.format(
+						env=_DefaultDict(os.environ, default=lambda k: ('{{env[{}]}}'.format(k))),
+					)
+				)
+					for x in event['patterns']
+				]
+			for pattern_path in patterns_paths:
+				if not os.path.exists(pattern_path):
+					logging.getLogger(__name__).error('Pattern not exists: %s', pattern_path.rsplit(os.path.sep, 1)[1])
+			pixmaps = [self.__load_pixmap(x if os.path.exists(x) else os.path.join(sys.path[0], 'images/16/not-found.png')) for x in patterns_paths]
+
+			# Scales pixmaps in order to prevent it to be found on a screen-shot
+			pixmaps = [x.scaled(QtCore.QSize(2. * x.width(), 2. * x.height()), QtCore.Qt.IgnoreAspectRatio) for x in pixmaps]
+
+			# Stores a combined pixmap somewhere in order to prevent its destroying
+			entry._combined_pixmap = combined_pixmap = QtGui.QPixmap(
+				2 * border + spacing * (len(pixmaps) + 1) + sum(x.width() for x in pixmaps),
+				2 * border + 2 * spacing + max(x.height() for x in pixmaps),
+			)
+
+			combined_pixmap.fill(QtGui.QColor('#fc0'))
+			painter = QtGui.QPainter(combined_pixmap)
+			painter.setPen(QtGui.QColor('#fff'))
+			painter.drawRect(0, 0, combined_pixmap.width() - 1, combined_pixmap.height() - 1)
+			for _index, x in enumerate(pixmaps):
+				painter.drawPixmap(
+					border + spacing + sum((spacing + pixmaps[x].width()) for x in range(_index)),
+					(combined_pixmap.height() - x.height()) // 2,
+					x,
+				)
+
+			icons[3] = QtGui.QIcon(combined_pixmap)
+
+		# self._tree_items_to_lines[view] = line
+		for _index in range(tree.columnCount()):
+			if _index in text:
+				entry.setText(_index, text[_index])
+				entry.setToolTip(_index, '#{}  {}'.format(index, line))
+				entry.setStatusTip(_index, '#{}  {}'.format(index, line))
+			if _index in icons:
+				entry.setIcon(_index, QtGui.QIcon(icons[_index]))
+				entry.setToolTip(_index, '#{}  {}'.format(index, line))
+				entry.setStatusTip(_index, '#{}  {}'.format(index, line))
 
 	def _run(self):
 		state_model = self._state_model
@@ -664,12 +678,13 @@ class MainController(AbstractController):
 										entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
 									tree.scrollToItem(entry, tree.EnsureVisible)
 								tree.viewport().update()  # Force update (fix for Qt5)
-						if line.startswith('Env='):
+						elif line.startswith('Env='):
 							value = line.split('=', 1)[1]
 							if value.startswith('{'):
 								env = ast.literal_eval(value)
 								os.environ.update(env)
-								Caller.call_once_after(0, self._fill)
+								# Caller.call_once_after(0, self._fill)
+								Caller.call_once_after(0, self._fill_tree_entries)
 						elif '[DEBUG]  ' in line:
 							logging.getLogger(__name__).debug(line)
 						elif '[INFO]  ' in line:
@@ -714,6 +729,8 @@ class MainController(AbstractController):
 
 	def _record(self):
 		state_model = self._state_model
+		view = self.__view
+		tree = view.commands_tree
 
 		if state_model.process is None:
 			# Shows dialog to select path (if not selected)
@@ -764,6 +781,7 @@ class MainController(AbstractController):
 							value = line.split('=', 1)[1]
 							if value.startswith('{'):
 								status = ast.literal_eval(value)
+								logging.getLogger(__name__).warning('status["index"]=' + '%s', status["index"])
 								entry = tree.topLevelItem(int(status['index']))
 								if entry is not None:
 									if status.get('code', False):
@@ -787,12 +805,25 @@ class MainController(AbstractController):
 			stderr_thread.daemon = True
 			stderr_thread.start()
 
+			# Keeps last line index
+			with self._with_data() as lines:
+				previous_last_index = len(lines)
+
 			def check_if_alive():
 				with self._with_status('Press "Pause" or "Insert" to create new event...'):
 					process.wait()
 				exit_code = process.returncode
 				logging.getLogger(__name__).info('Subprocess is terminated with exit code %s', exit_code)
 				state_model.process = None
+
+				# Checks if new lines appeared
+				with self._with_data() as lines:
+					new_last_index = len(lines)
+				count = new_last_index - previous_last_index
+				indices = set([x.row() for x in tree.selectedIndexes()])
+				if count > 0 and indices:
+					# Moves them after selected lines
+					self._move(from_index=previous_last_index, to_index=max(indices) + 1, count=count)
 			is_alive_thread = threading.Thread(target=check_if_alive)
 			is_alive_thread.daemon = True
 			is_alive_thread.start()

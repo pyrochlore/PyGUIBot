@@ -218,6 +218,7 @@ class RestoreController(AbstractController):
 								**locals()
 							))
 						elif event['type'] == 'equation':
+							# time.sleep(.2)
 							key, equation = [x.strip() for x in event['value'].split('=', 1)]
 							equation = self._substitute_variables(equation, env=_DefaultDict(
 								os.environ,
@@ -226,7 +227,9 @@ class RestoreController(AbstractController):
 							value = str(numexpr.evaluate(equation))
 							os.environ[key] = value
 							print('Env={}'.format({key: value}), file=sys.stderr); sys.stderr.flush()
+							# time.sleep(.2)
 						elif event['type'] == 'condition':
+							# time.sleep(.2)
 							condition = self._substitute_variables(event['value'])
 							value = bool(numexpr.evaluate(condition))
 							if not value:
@@ -234,6 +237,7 @@ class RestoreController(AbstractController):
 									message=' message "{event[message]}"'.format(**locals()) if 'message' in event else ' no message',
 									**locals()
 								))
+							# time.sleep(.2)
 						elif event['type'] == 'shell_command':
 							shell_command = shell_command_prefix + self._substitute_variables(event['value'])
 							logging.getLogger(__name__).debug('Command: %s', shell_command)
