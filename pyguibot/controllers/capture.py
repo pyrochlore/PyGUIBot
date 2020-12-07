@@ -44,11 +44,15 @@ class CaptureController(AbstractController):
 	"""
 
 	def __init__(self, path, verbose):
-		self._dst_path = dst_path = path
+		super(CaptureController, self).__init__(path=path)
+		state_model = self._state_model
 
-		self._capture_keys = False
-		self._key_sequence = []  # Storage for pressed/released keys for some event types
-		self._latest_key_triggered_timestamp = time.time()
+		# logging.getLogger(__name__).warning('os.getpgrp()=' + '%s', os.getpgrp())
+
+		"""Models"""
+		state_model.capture_keys = False
+		state_model.key_sequence = []  # Storage for pressed/released keys for some event types
+		state_model.latest_key_triggered_timestamp = time.time()
 
 		self._log_event_thread = None
 
@@ -61,13 +65,14 @@ class CaptureController(AbstractController):
 	def __on_key_triggered(self, code, key, press):
 		"""Callback for key press/release"""
 		logging.getLogger(__name__).debug('Key %s%s', '+' if press else '-', key)
+		state_model = self._state_model
 
-		if key in ('Break', ):
+		if key in ('Pause', ):
 			if press:
 				logging.getLogger(__name__).info('Terminated by user')
 				self._logger.exit()
 
-		elif key in ('Pause', 'Insert'):
+		elif key in ('Break', 'Insert'):
 			if press:
 				# Only one running thread is allowed. Skips if it is already running.
 				if self._log_event_thread is not None and self._log_event_thread.is_alive():
@@ -76,27 +81,24 @@ class CaptureController(AbstractController):
 					def create():
 						with (
 								contextlib.nullcontext(enter_result=sys.stdout)
-								if not self._dst_path or os.path.exists(self._dst_path) and os.path.isdir(self._dst_path) else
-								open(self._dst_path, 'a')
+								if not state_model.src_path or os.path.exists(state_model.src_path) and os.path.isdir(state_model.src_path) else
+								open(state_model.src_path, 'a')
 						) as dst:
-							try:
-								event = self._create(
-									dst_path=self._dst_path,
-									with_exceptions=True,
-								)
-							except Exception as e:
-								pass
-							else:
-								print(self._dump(event), end='', file=dst)
-								dst.flush()
+							event = self._create(
+								with_exceptions=True,
+								# with_exceptions=False,
+							)
+
+							print(self._dump(event), end='', file=dst)
+							dst.flush()
 					self._log_event_thread = thread = threading.Thread(target=create)
 					thread.setDaemon(True)
 					thread.start()
 
 		else:
-			if self._capture_keys:
-				self._key_sequence.append(('+' if press else '-') + key)
-				self._latest_key_triggered_timestamp = time.time()
+			if state_model.capture_keys:
+				state_model.key_sequence.append(('+' if press else '-') + key)
+				state_model.latest_key_triggered_timestamp = time.time()
 
 	"""Helpers"""
 

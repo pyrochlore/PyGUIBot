@@ -5,6 +5,7 @@
 # (c) gehrmann
 
 import ast
+import contextlib
 import datetime
 import logging
 import numpy
@@ -31,6 +32,7 @@ if __name__ == '__main__':
 	)
 	logging.getLogger(__name__).setLevel(logging.DEBUG)
 
+from models.abstract import ObservableAttrDict, ObservableList
 from models.devices import (
 	Screen,
 )
@@ -38,8 +40,62 @@ from models.devices import (
 __doc__ = """"""
 
 
+class _State(ObservableAttrDict):
+	pass
+
+
 class AbstractController(object):
 	"""Abstract class for every controller"""
+
+	def __init__(self, path):
+		"""Models"""
+		self._state_model = state_model = _State()
+		state_model.src_path = path
+		state_model.dst_directory_path = dst_directory_path = (lambda x: (x if os.path.isdir(x) else os.path.dirname(x)))(os.path.realpath(path or '.'))
+		# TODO: move temporary directory to /tmp
+		state_model.tmp_directory_path = tmp_directory_path = os.path.join(dst_directory_path, '.tmp.pyguibot')
+		if not os.path.exists(tmp_directory_path):
+			os.makedirs(tmp_directory_path)
+
+	"""Helpers"""
+
+	@contextlib.contextmanager
+	def _with_data(self, src_path=None, dst_path=None):
+		state_model = self._state_model
+
+		# Loads lines
+		if True:
+			if src_path is None:
+				src_path = state_model.src_path
+
+			with (
+					open(src_path)
+					if src_path is not None and os.path.exists(src_path) else
+					contextlib.nullcontext(enter_result=(None if sys.stdin.isatty() else sys.stdin))  # From stdin or nowhere
+			) as src:
+				lines = ObservableList(src.readlines() if src is not None else [])
+
+			# Monitors if list was changed
+			state = dict(changed=False)
+			def on_updated(model=None, previous=(None, ), current=(None, )):
+				if previous[0] != current[0]:
+					state['changed'] = True
+			lines.changed.bind(on_updated)
+
+		yield lines
+
+		# Saves lines
+		if True:
+			if dst_path is None:
+				dst_path = state_model.src_path
+
+			if state['changed'] or dst_path != src_path:
+				if not dst_path:
+					dst_path = self._save()
+
+				if dst_path:
+					with open(dst_path, 'w') as dst:
+						print(''.join(lines), end='', file=dst)
 
 	def _dump(self, event):
 		"""Dumps event to string with a trailing newline"""
@@ -55,101 +111,116 @@ class AbstractController(object):
 		event['level'] = (len(data) - len(data.lstrip()))
 		return event
 
-	def _create(self, dst_path, template={}, with_exceptions=False, filename_type='datetime'):
-		dst_path = os.path.realpath(dst_path or '.')
-		dst_directory_path = dst_path if os.path.isdir(dst_path) else os.path.dirname(dst_path)
-
-		if filename_type == 'incremental':
-			pattern_filename = self._generate_incremental_filename(dst_directory_path)
-		elif filename_type == 'datetime':
-			pattern_filename = self._generate_datetime_filename(dst_directory_path)
-		pattern_filename += '.png'
-
-		pattern_path = os.path.join(dst_directory_path, pattern_filename)
+	def _create(self, template={}, with_exceptions=False, filename_type='datetime'):
+		"""Creates and returns new event"""
+		state_model = self._state_model
 
 		try:
-			try:
-				event = dict(
-					level=template.get('level', 0),
+			event = dict(
+				level=template.get('level', 0),
+			)
+
+			event['type'] = event_type = self._interactive_select_event_type()
+
+			if event_type == 'goto':
+				event['value'] = self._interactive_input_value(message='Enter line number')
+
+			elif event_type == 'delay':
+				event['value'] = self._interactive_input_value(message='Enter delay (in s.)')
+
+			elif event_type in ('jump', 'break'):
+				event['value'] = self._interactive_input_value(
+					message='Enter number of shifts to {event[type]} (-+ for relative)'.format(**locals()),
+					value=template.get('value', None),
+				)
+				event['message'] = self._interactive_input_value(
+					message='Enter message',
+					value=template.get('message', None),
 				)
 
-				event['type'] = event_type = self._interactive_select_event_type()
+			elif event_type == 'equation':
+				event['value'] = self._interactive_input_value(
+					message='Enter equation (for example, X = {X} + 1)',
+					value=template.get('value', None),
+				)
 
-				if event_type == 'delay':
-					event['value'] = self._interactive_input_value(message='Enter delay (in s.)')
+			elif event_type == 'condition':
+				event['value'] = self._interactive_input_value(
+					message='Enter condition (for example, {X} == 5)',
+					value=template.get('value', None),
+				)
 
-				elif event_type in ('jump', 'break'):
+			elif event_type == 'shell_command':
+				event['value'] = self._interactive_input_value(
+					message='Enter shell command',
+					value=template.get('value', None),
+				)
+
+			elif event_type == 'keyboard_type':
+				event['value'] = self._interactive_input_value(
+					message='Enter string to type',
+					value=template.get('value', None),
+				)
+
+			elif event_type in ('keyboard_tap', 'keyboard_press', 'keyboard_release'):
+				# If self-object does not listen to keyboard events
+				if not hasattr(self, '_key_sequence'):
 					event['value'] = self._interactive_input_value(
-						message='Enter number of shifts to {event[type]} (-+ for relative)'.format(**locals()),
+						message='Enter key sequence ("+" for key press, "-" for key release, comma-separated)',
 						value=template.get('value', None),
 					)
-					event['message'] = self._interactive_input_value(
-						message='Enter message',
-						value=template.get('message', None),
-					)
+				else:
+					self._key_sequence[:] = []
+					self._capture_keys = True
 
-				elif event_type == 'equation':
-					event['value'] = self._interactive_input_value(
-						message='Enter equation (for example, X = {X} + 1)',
-						value=template.get('value', None),
-					)
+					try:
+						# Waits for a confirmation that a whole key sequence is tapped
+						self._interactive_confirm_key_sequence()
 
-				elif event_type == 'condition':
-					event['value'] = self._interactive_input_value(
-						message='Enter condition (for example, {X} == 5)',
-						value=template.get('value', None),
-					)
+						# # Removes a Return-key if it was tapped in order to close confirmation dialog
+						# # (short time between tapping and closing of a confirmation dialog)
+						# if self._key_sequence[-2:] == ['+Return', '-Return'] and time.time() - self._latest_key_triggered_timestamp < .1:
+						#     self._key_sequence[-2:] = []
 
-				elif event_type == 'shell_command':
-					event['value'] = self._interactive_input_value(
-						message='Enter shell command',
-						value=template.get('value', None),
-					)
-
-				elif event_type == 'keyboard_type':
-					event['value'] = self._interactive_input_value(
-						message='Enter string to type',
-						value=template.get('value', None),
-					)
-
-				elif event_type in ('keyboard_tap', 'keyboard_press', 'keyboard_release'):
-					# If self-object does not listen to keyboard events
-					if not hasattr(self, '_key_sequence'):
-						event['value'] = self._interactive_input_value(
-							message='Enter key sequence ("+" for key press, "-" for key release, comma-separated)',
-							value=template.get('value', None),
-						)
-					else:
+						event['value'] = ','.join([x for x in self._key_sequence if any((
+							(event_type == 'keyboard_tap'),
+							(event_type == 'keyboard_press' and x.startswith('+')),
+							(event_type == 'keyboard_release' and x.startswith('-')),
+						))])
+					finally:
+						self._capture_keys = False
 						self._key_sequence[:] = []
-						self._capture_keys = True
 
-						try:
-							# Waits for a confirmation that a whole key sequence is tapped
-							self._interactive_confirm_key_sequence()
+			elif event_type.startswith('mouse_'):
+				tmp_pattern_path = os.path.join(state_model.tmp_directory_path, '.screenshot.png')
 
-							# # Removes a Return-key if it was tapped in order to close confirmation dialog
-							# # (short time between tapping and closing of a confirmation dialog)
-							# if self._key_sequence[-2:] == ['+Return', '-Return'] and time.time() - self._latest_key_triggered_timestamp < .1:
-							#     self._key_sequence[-2:] = []
-
-							event['value'] = ','.join([x for x in self._key_sequence if any((
-								(event_type == 'keyboard_tap'),
-								(event_type == 'keyboard_press' and x.startswith('+')),
-								(event_type == 'keyboard_release' and x.startswith('-')),
-							))])
-						finally:
-							self._capture_keys = False
-							self._key_sequence[:] = []
-
-				elif event_type.startswith('mouse_'):
+				try:
 					# Waits some seconds (to allow user to invoke menu or something else)
 					time.sleep(2.)
 
 					# Makes screen shot
-					Screen.make_screenshot(pattern_path)
+					Screen.make_screenshot(tmp_pattern_path)
 
 					# Crops screen shot
-					self._interactive_crop_image(pattern_path)
+					self._interactive_crop_image(tmp_pattern_path)
+
+					# Asks for a filename
+					# TODO: rewrite for better logic for same patterns, maybe with a "select file or create new" dialog
+					logging.getLogger(__name__).warning('')
+					if filename_type == 'incremental':
+						pattern_basename = self._generate_incremental_filename(state_model.dst_directory_path)
+					elif filename_type == 'datetime':
+						pattern_basename = self._generate_datetime_filename(state_model.dst_directory_path)
+					try:
+						pattern_basename = self._interactive_input_value(
+							message='Enter pattern name (default: "{pattern_basename}")'.format(**locals()),
+						)
+					except subprocess.CalledProcessError:
+						raise
+					pattern_filename = pattern_basename + '.png'
+					pattern_path = os.path.join(state_model.dst_directory_path, pattern_filename)
+					os.rename(tmp_pattern_path, pattern_path)
+					time.sleep(1.0)  # Waits till images will be moved
 
 					event['patterns'] = [pattern_filename]
 
@@ -162,14 +233,14 @@ class AbstractController(object):
 					#     except ValueError:
 					#         pass
 
-				logging.getLogger(__name__).info(repr(event))
-				return event
+				except Exception:
+					# Removes unused screenshot
+					if os.path.exists(tmp_pattern_path):
+						os.unlink(tmp_pattern_path)
+					raise
 
-			except Exception:
-				# Removes unused screenshot
-				if os.path.exists(pattern_path):
-					os.unlink(pattern_path)
-				raise
+			logging.getLogger(__name__).info(repr(event))
+			return event
 
 		except subprocess.CalledProcessError:
 			if with_exceptions:
@@ -218,6 +289,7 @@ class AbstractController(object):
 	@staticmethod
 	def _interactive_select_event_type():
 		event_types = (
+			'goto',
 			'delay',
 			'jump',
 			'break',

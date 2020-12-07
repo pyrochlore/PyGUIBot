@@ -71,19 +71,27 @@ class RestoreController(AbstractController):
 	""""""
 
 	def __init__(self, path, verbose=0, from_line=None, to_line=None, with_screencast=False, shell_command_prefix=''):
-		self._src_path = src_path = path
-		self._tmp_path = tmp_path = os.path.join(os.path.realpath(os.path.dirname(src_path)) if src_path is not None else '.', '.tmp')
+		super(RestoreController, self).__init__(path=path)
+		state_model = self._state_model
+		state_model.verbose = verbose
+		state_model.from_line = from_line
+		state_model.to_line = to_line
+		state_model.with_screencast = with_screencast
+		state_model.shell_command_prefix = shell_command_prefix
 
-		# Creates temporary directory
-		if not os.path.exists(tmp_path):
-			os.makedirs(tmp_path)
+	"""Helpers"""
+
+	def loop(self):
+		state_model = self._state_model
+		from_line = state_model.from_line
+		to_line = state_model.to_line
 
 		screen_record_is_running = True
 
 		# Writes a screen record during execution
 		def record_screen():
-			# path = os.path.join(self._tmp_path, 'screencast-' + datetime.datetime.now().strftime('%Y-%m-%d-%H:%M:%S') + '.mkv')
-			path = os.path.join(self._tmp_path, 'screencast.mkv')
+			# path = os.path.join(state_model.tmp_directory_path, 'screencast-' + datetime.datetime.now().strftime('%Y-%m-%d-%H:%M:%S') + '.mkv')
+			path = os.path.join(state_model.tmp_directory_path, 'screencast.mkv')
 			# Removes previously saved screen record
 			try:
 				os.unlink(path)
@@ -123,16 +131,25 @@ class RestoreController(AbstractController):
 			os.killpg(os.getpgid(process.pid), signal.SIGINT)
 			process.wait()
 
-		if with_screencast:
+		if state_model.with_screencast:
 			record_screen_thread = threading.Thread(target=record_screen)
 			record_screen_thread.setDaemon(False)  # Keeps a thread alive if an exception in main thread occurred
 			record_screen_thread.start()
 
 		try:
-			with open(src_path) if src_path is not None else sys.stdin as src:
-				skip_level = None
+			with self._with_data() as lines:
+				# for index, line in enumerate(lines):
+				index, next_index, skip_level = -1, None, None
+				while True:
+					if next_index is None:
+						next_index = index + 1
 
-				for index, line in enumerate(x.rstrip() for x in src):
+					index, next_index = next_index, None
+
+					if index >= len(lines):
+						break
+
+					line = lines[index]
 
 					# Skips if outside selected lines
 					if from_line is not None and index < from_line or to_line is not None and to_line < index:
@@ -158,6 +175,7 @@ class RestoreController(AbstractController):
 					try:
 						print('Status={}'.format(dict(index=index, code='current')), file=sys.stderr); sys.stderr.flush()
 						print('Doing step #{line_number}'.format(line_number=(index + 1))); sys.stdout.flush()
+						time.sleep(.1)  # Gives time to update status to "current" (GUI-side)
 
 						event_x, event_y = Mouse.position()
 
@@ -171,14 +189,14 @@ class RestoreController(AbstractController):
 							try:
 								patterns_paths = [
 									os.path.join(
-										os.path.dirname(os.path.realpath(self._src_path)) if self._src_path is not None else '.',
+										state_model.dst_directory_path,
 										self._substitute_variables_with_values(x)
 									)
 									for x in event['patterns']
 								]
 								event_x, event_y = self._locate_image_patterns(
 									paths=patterns_paths,
-									timeout=float(event.get('timeout', 10.)),
+									timeout=float(event.get('timeout', 5.)),
 									delay=float(event.get('delay', 2.)),
 									threshold=dict(dict(
 										TM_CCOEFF_NORMED=.963,
@@ -189,7 +207,8 @@ class RestoreController(AbstractController):
 									}),
 								)
 							except Exception as e:
-								raise e.__class__(e.__class__(str(e) + ' [DEBUG: {}]'.format(dict(patterns_paths=patterns_paths)))).with_traceback(sys.exc_info()[2])
+								# raise e.__class__(e.__class__(str(e) + ' [DEBUG: {}]'.format(locals()))).with_traceback(sys.exc_info()[2])
+								raise
 
 						# Shifts coordinates if 'x' or 'y' found in event
 						event_x, event_y = [
@@ -202,7 +221,12 @@ class RestoreController(AbstractController):
 
 						logging.getLogger(__name__).debug('Making event %s', event['type'])
 
-						if event['type'] == 'delay':
+						if event['type'] == 'goto':
+							time.sleep(.2)
+							value = self._substitute_variables_with_values(event['value'])
+							next_index = (index + int(value)) if value.startswith('+') or value.startswith('-') else int(value)
+							from_line, to_line = None, None  # Re-sets selected range (because no sense to go up/down only inside it)
+						elif event['type'] == 'delay':
 							value = self._substitute_variables_with_values(event['value'])
 							time.sleep(float(value))
 						elif event['type'] in ('jump', 'break'):
@@ -221,7 +245,6 @@ class RestoreController(AbstractController):
 								)
 							)
 						elif event['type'] == 'equation':
-							# time.sleep(.2)
 							key, equation = [x.strip() for x in event['value'].split('=', 1)]
 							equation = self._substitute_variables_with_values(equation, env=_DefaultDict(
 								os.environ,
@@ -230,9 +253,7 @@ class RestoreController(AbstractController):
 							value = str(numexpr.evaluate(equation))
 							os.environ[key] = value
 							print('Env={}'.format({key: value}), file=sys.stderr); sys.stderr.flush()
-							# time.sleep(.2)
 						elif event['type'] == 'condition':
-							# time.sleep(.2)
 							condition = self._substitute_variables_with_values(event['value'])
 							value = bool(numexpr.evaluate(condition))
 							if not value:
@@ -240,19 +261,20 @@ class RestoreController(AbstractController):
 									message=' message "{event[message]}"'.format(**locals()) if 'message' in event else ' no message',
 									**locals()
 								))
-							# time.sleep(.2)
 						elif event['type'] == 'shell_command':
-							shell_command = shell_command_prefix + self._substitute_variables_with_values(event['value'])
+							shell_command = state_model.shell_command_prefix + self._substitute_variables_with_values(event['value'])
 							logging.getLogger(__name__).debug('Command: %s', shell_command)
 							process = subprocess.Popen(
 								shell_command,
 								shell=True, text=True,
 								stdout=sys.stdout,
 								stderr=sys.stderr,
-								env=dict(os.environ, **dict(UPLOAD_PATH=self._tmp_path)),
+								env=dict(os.environ, **dict(UPLOAD_PATH=state_model.tmp_directory_path)),
 							)
 							if event.get('wait', True):
+								# logging.getLogger(__name__).warning('<shell command output>')
 								exit_code = process.wait()
+								# logging.getLogger(__name__).warning('</shell command output>')
 								if exit_code:
 									raise Break('Command was terminated with exit code {exit_code}.'.format(**locals()))
 						elif event['type'] == 'keyboard_press':
@@ -268,13 +290,10 @@ class RestoreController(AbstractController):
 							time.sleep(.2)
 							value = self._substitute_variables_with_values(event['value'])
 							Keyboard.type(value, interval=.15)
-							# print >>sys.stderr, 'event["value"]=', event["value"]; sys.stderr.flush()  # FIXME: must be removed/commented
 							# for character in self._substitute_variables_with_values(event['value']):
 							#     Keyboard.press(character)
-							#     print >>sys.stderr, '{} pressed'.format(character); sys.stderr.flush()  # FIXME: must be removed/commented
 							#     time.sleep(.25)
 							#     Keyboard.release(character)
-							#     print >>sys.stderr, '{} released'.format(character); sys.stderr.flush()  # FIXME: must be removed/commented
 							#     time.sleep(.25)
 						elif event['type'] == 'mouse_move':
 							time.sleep(.2)
@@ -320,10 +339,12 @@ class RestoreController(AbstractController):
 						print('Status={}'.format(dict(index=index, code='completed')), file=sys.stderr); sys.stderr.flush()
 
 					except Break as e:
-						logging.getLogger(__name__).warning('e=' + '%s', e)
-						print('Status={}'.format(dict(index=index, code=(
-							'completed' if event['type'] in ('jump', 'condition') else 'failed'
-						))), file=sys.stderr); sys.stderr.flush()
+						# Updates status (GUI-side)
+						if event['type'] in ('jump', 'condition'):
+							print('Status={}'.format(dict(index=index, code=('completed'))), file=sys.stderr); sys.stderr.flush()
+						else:
+							print('Status={}'.format(dict(index=index, code=('failed'))), file=sys.stderr); sys.stderr.flush()
+
 						if event['level'] > 0:
 							logging.getLogger(__name__).debug('Skipping level %s for %s', event['level'], event)
 							skip_level = event['level']
@@ -332,19 +353,18 @@ class RestoreController(AbstractController):
 							break
 						else:
 							# raise e.__class__, e.__class__(unicode(e) + ' [DEBUG: {}]'.format(dict(line=index, event=event))), sys.exc_info()[2]
-							print(repr(e), file=sys.stderr); sys.stderr.flush()
+							# print(repr(e), file=sys.stderr); sys.stderr.flush()
+							print(str(e), file=sys.stderr); sys.stderr.flush()
 							sys.exit(1)
 
 		except KeyboardInterrupt:
 			pass
 
 		finally:
-			if with_screencast:
+			if state_model.with_screencast:
 				# Stops screen record thread and saves a screen record
 				screen_record_is_running = False
 				record_screen_thread.join()
-
-	"""Helpers"""
 
 	def _tap(self, keys, delay=.08):
 		for key in keys.split(','):
@@ -357,6 +377,8 @@ class RestoreController(AbstractController):
 
 	def _locate_image_patterns(self, paths, timeout, delay, threshold):
 		"""Looks for image patterns on the screen, returns centered position or None"""
+		state_model = self._state_model
+
 		logging.getLogger(__name__).debug('Looking for patterns "%s"...', paths)
 
 		patterns = [self._load_array(x) for x in paths]
@@ -366,7 +388,7 @@ class RestoreController(AbstractController):
 			t1 = time.monotonic()
 
 			# Removes previous temporary images
-			_path, _directories, _files = next(os.walk(self._tmp_path))
+			_path, _directories, _files = next(os.walk(state_model.tmp_directory_path))
 			for _subpath in [x for x in _files if x.startswith('pattern-') and x.endswith('.png')]:
 				os.unlink(os.path.join(_path, _subpath))
 
@@ -409,7 +431,7 @@ class RestoreController(AbstractController):
 										correlation['max_location'][1]:correlation['max_location'][1] + height,
 										correlation['max_location'][0]:correlation['max_location'][0] + width,
 									],
-									os.path.join(self._tmp_path, 'pattern-{0}-{1[method]}-{1[max_correlation]:.1%}.png'.format(pattern_index, correlation)),
+									os.path.join(state_model.tmp_directory_path, 'pattern-{0}-{1[method]}-{1[max_correlation]:.1%}.png'.format(pattern_index, correlation)),
 								)
 
 					for correlation in correlations:
@@ -424,7 +446,7 @@ class RestoreController(AbstractController):
 			#     print >>sys.stderr, 'Correlation:', ', '.join(['{max_correlation:.1%} for {method} {max_location}'.format(**xx) for x in patterns_correlations for xx in x]); sys.stderr.flush()
 			#     for method, location, correlation in [(x['method'], x['max_location']) for x in patterns_correlations for xx in x]:
 			#         print >>sys.stderr, '{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), 'screenshot_array.__class__=', screenshot_array.__class__; sys.stderr.flush()  # FIXME: must be removed/commented
-			#         # self._save_array(screenshot_array[location], os.path.join(self._tmp_path, 'found_{}_{}_().png'.format(pattern_index, method, )))  # Comment it in production
+			#         # self._save_array(screenshot_array[location], os.path.join(state_model.tmp_directory_path, 'found_{}_{}_().png'.format(pattern_index, method, )))  # Comment it in production
 
 			# Checks if timeout reached
 			_delay = delay - (
@@ -447,10 +469,10 @@ class RestoreController(AbstractController):
 				if True:
 					# Stores failed patterns
 					for index, path in enumerate(paths, start=1):
-						shutil.copyfile(path, os.path.join(self._tmp_path, 'pattern-{}.png'.format(index)))
+						shutil.copyfile(path, os.path.join(state_model.tmp_directory_path, 'pattern-{}.png'.format(index)))
 
 					# Stores current screenshot
-					self._save_array(screenshot_array, os.path.join(self._tmp_path, 'screenshot.png'))  # Comment it in production
+					self._save_array(screenshot_array, os.path.join(state_model.tmp_directory_path, 'screenshot.png'))  # Comment it in production
 
 					# # Shows diff image on the screen
 					# window_title = 'Difference image'
@@ -460,7 +482,11 @@ class RestoreController(AbstractController):
 					# cv2.imshow(window_title, result)
 					# cv2.waitKey(0)
 					# cv2.destroyAllWindows()
-				raise Break('Timeout is reached ({}). Patterns "{}" are not found.'.format(timeout, paths))
+				# raise Break('Timeout is reached ({}). Patterns "{}" are not found.'.format(timeout, paths))
+				raise Break('Timeout is reached ({}), patterns ("{}") not found.'.format(
+					timeout,
+					'", "'.join([os.path.splitext(os.path.basename(x))[0] for x in paths]),
+				))
 			continue
 
 	@staticmethod
@@ -525,7 +551,10 @@ def run_init():
 	parser.add_argument('--shell-command-prefix', default='', help='Adds prefix to every event named "shell_command"')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
 
-	RestoreController(**kwargs)
+	try:
+		RestoreController(**kwargs).loop()
+	except KeyboardInterrupt:
+		pass
 
 
 def main():

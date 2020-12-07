@@ -58,28 +58,24 @@ from PyQt import QtCore, QtGui, QtWidgets, uic
 
 from controllers.abstract import AbstractController
 from helpers.caller import Caller
-from models.abstract import AttrDict, ObservableAttrDict, ObservableList
 # from models.settings import Settings
 
 
-class _State(ObservableAttrDict):
-	pass
-
-
 class MainController(AbstractController):
-	def __init__(self, path, verbose, autorun, autostop, autoexit, geometry, with_screencast, disable_observer, shell_command_prefix):
+	def __init__(self, path, verbose, autorun, autostop, autoexit, geometry, with_screencast, with_observer, shell_command_prefix):
+		super(MainController, self).__init__(path=path)
+		state_model = self._state_model
+
 		self._app = app = QtWidgets.QApplication(sys.argv)
 
 		"""Models"""
-		self._state_model = state_model = _State()
-		state_model.src_path = path
 		state_model.src_path_events_observer = None
 		state_model.verbose = verbose
 		state_model.process = None
 		state_model.autostop = autostop
 		state_model.autoexit = autoexit
 		state_model.with_screencast = with_screencast
-		state_model.disable_observer = disable_observer
+		state_model.with_observer = with_observer
 		state_model.shell_command_prefix = shell_command_prefix
 		state_model.status = 'Click "Play" to (re)run or "Record" to add new events...'
 		state_model.exception = ''
@@ -169,6 +165,10 @@ class MainController(AbstractController):
 
 		if model is state_model:
 			if current[0] is None or 'src_path' in current[0]:
+				if previous[0] is not None and previous[0] != current[0]:
+					with self._with_data(src_path=previous[0], dst_path=current[0]):
+						pass
+
 				if state_model.src_path is not None:
 					self._set_src_path_events_observer()
 
@@ -211,8 +211,13 @@ class MainController(AbstractController):
 			dst.write(self.__view.saveState())
 
 	def __on_key_pressed(self, event):
+		state_model = self._state_model
+
 		if event.key() == QtCore.Qt.Key_Escape:
-			self.__view.close()
+			if state_model.process is not None:
+				self._stop()
+			else:
+				self.__view.close()
 		elif event.modifiers() == (QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier) and event.key() == QtCore.Qt.Key_I:
 			QtCore.pyqtRemoveInputHook()
 			import ipdb
@@ -227,6 +232,8 @@ class MainController(AbstractController):
 		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_S:
 			self.__on_stop_triggered(event)
 		elif event.modifiers() == QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_R:
+			self.__on_record_triggered(event)
+		elif event.key() == QtCore.Qt.Key_Insert:
 			self.__on_record_triggered(event)
 		elif event.modifiers() & QtCore.Qt.ControlModifier and event.key() == QtCore.Qt.Key_Less:
 			self.__on_shift_left_triggered(event)
@@ -376,7 +383,10 @@ class MainController(AbstractController):
 	"""Helpers"""
 
 	def loop(self):
-		return self._app.exec_()
+		try:
+			return self._app.exec_()
+		finally:
+			self._stop()
 
 	def __restore_window_geometry(self):
 		try:
@@ -404,8 +414,8 @@ class MainController(AbstractController):
 			if not path.endswith('.pyguibot'):
 				path += '.pyguibot'
 
+			# Tries to open selected path
 			try:
-				# Opens file (if not exists)
 				with open(path):
 					pass
 			except Exception as e:
@@ -430,14 +440,16 @@ class MainController(AbstractController):
 				path += '.pyguibot'
 
 			try:
-				# Creates file (if not exists)
-				if self._state_model.src_path is not None:
-					with open(self._state_model.src_path) as src:
-						with open(path, 'w') as dst:
-							dst.write(src.read())
-				else:
-					with open(path, 'a'):
-						pass
+				# # Creates file (if not exists)
+				# if self._state_model.src_path is not None:
+				#     with open(self._state_model.src_path) as src:
+				#         with open(path, 'w') as dst:
+				#             dst.write(src.read())
+				# else:
+				#     with open(path, 'a'):
+				#         pass
+				with open(path, 'a'):
+					pass
 			except Exception as e:
 				QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, 'Error!', 'Failed to save there!\n\n{}'.format(e)).exec_()
 				path = None
@@ -455,12 +467,12 @@ class MainController(AbstractController):
 				entry.setForeground(1, QtGui.QBrush(QtGui.QColor(self._state_colors['ready'] or '#999')))
 				entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors['ready'] or QtCore.Qt.transparent)))
 				entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors['ready'] or QtCore.Qt.transparent)))
-				entry.setSelected(False)
+				# entry.setSelected(False)
 
 	def _set_src_path_events_observer(self):
 		state_model = self._state_model
 
-		if not state_model.disable_observer:
+		if state_model.with_observer:
 			def on_modified(event):
 				if os.path.realpath(event.src_path) == os.path.realpath(state_model.src_path):
 					Caller.call_once_after(.1, self._fill)
@@ -515,7 +527,7 @@ class MainController(AbstractController):
 		with self._with_data() as lines:
 			index = 0
 			# Appends or updates entries
-			for index, line in enumerate((x for x in lines), start=1):
+			for index, line in enumerate((x for x in lines)):
 				entry = tree.topLevelItem(index)
 				if entry is None:
 					# Creates entry if not exists
@@ -523,10 +535,10 @@ class MainController(AbstractController):
 					entry.setFlags(entry.flags() ^ QtCore.Qt.ItemIsDropEnabled)  # Disallow dropping inside item
 					tree.addTopLevelItem(entry)
 
-				self._fill_tree_entry(index, entry, line)
+				self._fill_tree_entry(index + 1, entry, line)
 
 			# Removes superfluous entries
-			for index in range(index, tree.topLevelItemCount()):
+			for index in range(index + 1, tree.topLevelItemCount()):
 				entry = tree.topLevelItem(index)
 				tree.takeTopLevelItem(index)
 
@@ -656,7 +668,8 @@ class MainController(AbstractController):
 
 			state_model.process = process = subprocess.Popen(
 				cwd=os.getcwd(),
-				shell=True, text=True, preexec_fn=os.setsid, args=' '.join([str(x) for x in command]),
+				shell=True, text=True, args=' '.join([str(x) for x in command]),
+				start_new_session=True,  # Daemonizes process, the same as preexec_fn=os.setsid
 				bufsize=1,
 				stdin=subprocess.PIPE,
 				stdout=subprocess.PIPE,
@@ -665,29 +678,23 @@ class MainController(AbstractController):
 			error_messages = []
 
 			def read_stdout():
-				# while process.poll() is None and not process.stdout.closed and process.returncode is None:
-				#     line = process.stdout.readline().rstrip()
 				try:
 					for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
 						if not line:  # Probably process was terminated
 							break
 						try:
-							# logging.getLogger(__name__).debug('STDOUT: %s', line)
 							print(datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], '{0.f_code.co_filename}:{0.f_lineno}'.format(sys._getframe()), line, file=sys.stdout); sys.stdout.flush()
 						except Exception as e:
 							print('Exception in thread:', file=sys.stderr); sys.stderr.flush()
 							print(e, file=sys.stderr); sys.stderr.flush()
 				except ValueError:
 					logging.getLogger(__name__).warning('ValueError raised, ignoring.')
-					# raise
 				logging.getLogger(__name__).debug('Subprocess stdout loop is closed')
 			stdout_thread = threading.Thread(target=read_stdout)
 			stdout_thread.daemon = True
 			stdout_thread.start()
 
 			def read_stderr():
-				# while process.poll() is None and not process.stderr.closed and process.returncode is None:
-				#     line = process.stderr.readline().rstrip()
 				try:
 					for line in (x.rstrip() for x in iter(process.stderr.readline, '')):
 						if not line:  # Probably process was terminated
@@ -705,18 +712,19 @@ class MainController(AbstractController):
 											entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
 											entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
 										tree.scrollToItem(entry, tree.EnsureVisible)
-									tree.viewport().update()  # Force update (fix for Qt5)
+										tree.viewport().update()  # Force update (fix for Qt5)
 							elif line.startswith('Env='):
 								value = line.split('=', 1)[1]
 								if value.startswith('{'):
 									env = ast.literal_eval(value)
 									os.environ.update(env)
-									# Caller.call_once_after(0, self._fill)
 									Caller.call_once_after(0, self._fill_tree_entries)
 							elif '[DEBUG]  ' in line:
 								logging.getLogger(__name__).debug(line)
 							elif '[INFO]  ' in line:
 								logging.getLogger(__name__).info(line)
+							elif '[WARNING]  ' in line:
+								logging.getLogger(__name__).warning(line)
 							else:
 								logging.getLogger(__name__).error(line)
 								error_messages.append(line)
@@ -725,7 +733,6 @@ class MainController(AbstractController):
 							print(e, file=sys.stderr); sys.stderr.flush()
 				except ValueError:
 					logging.getLogger(__name__).warning('ValueError raised, ignoring.')
-					# raise
 				logging.getLogger(__name__).debug('Subprocess stderr loop is closed')
 			stderr_thread = threading.Thread(target=read_stderr)
 			stderr_thread.daemon = True
@@ -733,16 +740,14 @@ class MainController(AbstractController):
 
 			def check_if_alive():
 				with self._with_status('Please wait...'):
-					# process.wait()
-					stdout, stderr = process.communicate()  # Waits and reads out stdout/stderr pipes
+					process.wait()  # Do not use communicate() - conflicts with threads for stdout/stderr
 				exit_code = process.returncode
 
 				if exit_code:
 					logging.getLogger(__name__).error('Subprocess was terminated with exit code %s', exit_code)
 
-					stderr = '\n'.join(error_messages) + stderr
+					stderr = '\n'.join(error_messages)
 					if stderr:
-						# logging.getLogger(__name__).warning('stderr=' + '%s', stderr)
 						state_model.exception = stderr
 				else:
 					logging.getLogger(__name__).info('Subprocess was terminated')
@@ -764,6 +769,7 @@ class MainController(AbstractController):
 		if state_model.process is not None:
 			os.killpg(os.getpgid(state_model.process.pid), signal.SIGINT)
 			state_model.process.wait()
+			state_model.process = None
 
 	def _record(self):
 		state_model = self._state_model
@@ -788,7 +794,8 @@ class MainController(AbstractController):
 
 			state_model.process = process = subprocess.Popen(
 				cwd=os.getcwd(),
-				shell=True, text=True, preexec_fn=os.setsid, args=' '.join([str(x) for x in command]),
+				shell=True, text=True, args=' '.join([str(x) for x in command]),
+				# start_new_session=True,  # Daemonizes process, the same as preexec_fn=os.setsid
 				bufsize=1,
 				stdin=subprocess.PIPE,
 				stdout=subprocess.PIPE,
@@ -796,11 +803,8 @@ class MainController(AbstractController):
 			)
 
 			def read_stdout():
-				# while process.poll() is None and not process.stdout.closed and process.returncode is None:
-				#     line = process.stdout.readline().rstrip()
 				for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
 					try:
-						# logging.getLogger(__name__).debug('STDOUT: %s', line)
 						print('{0.f_code.co_filename}:{0.f_lineno}:'.format(sys._getframe()), line, file=sys.stdout); sys.stdout.flush()
 					except Exception as e:
 						print('Exception in thread:', file=sys.stderr); sys.stderr.flush()
@@ -811,8 +815,6 @@ class MainController(AbstractController):
 			stdout_thread.start()
 
 			def read_stderr():
-				# while process.poll() is None and not process.stderr.closed and process.returncode is None:
-				#     line = process.stderr.readline().rstrip()
 				for line in (x.rstrip() for x in iter(process.stderr.readline, '')):
 					try:
 						if line.startswith('Status='):
@@ -846,11 +848,10 @@ class MainController(AbstractController):
 			# Keeps last line index
 			with self._with_data() as lines:
 				previous_index = len(lines)
-				logging.getLogger(__name__).warning('previous_index=' + '%s', previous_index)
 
 			def check_if_alive():
-				with self._with_status('Press "Pause" or "Insert" to create new event...'):
-					process.wait()
+				with self._with_status('Press "Insert" or "Break" to create new event, press "Pause" to terminate event capturing.'):
+					process.wait()  # Do not use communicate() - conflicts with threads for stdout/stderr
 				exit_code = process.returncode
 				logging.getLogger(__name__).info('Subprocess is terminated with exit code %s', exit_code)
 				state_model.process = None
@@ -882,36 +883,6 @@ class MainController(AbstractController):
 		yield
 		state_model.status = previous_message
 
-	@contextlib.contextmanager
-	def _with_data(self):
-		state_model = self._state_model
-
-		# Loads lines
-		with (
-				open(state_model.src_path)
-				if state_model.src_path is not None and os.path.exists(state_model.src_path) else
-				contextlib.nullcontext(enter_result=(None if sys.stdin.isatty() else sys.stdin))  # From stdin or nowhere
-		) as src:
-			lines = ObservableList(src.readlines() if src is not None else [])
-
-		# Monitors if list was changed
-		state = dict(save=False)
-		def on_updated(model=None, previous=(None, ), current=(None, )):
-			if previous[0] != current[0]:
-				state['save'] = True
-		lines.changed.bind(on_updated)
-
-		yield lines
-
-		if state['save']:
-			# Saves lines
-			if not state_model.src_path:
-				state_model.src_path = self._save()
-
-			if state_model.src_path:
-				with open(state_model.src_path, 'w') as dst:
-					print(''.join(lines), end='', file=dst)
-
 	def _delete(self, index, count):
 		with self._with_data() as lines:
 			# Removes lines
@@ -940,7 +911,6 @@ class MainController(AbstractController):
 
 				# Creates
 				event = self._create(
-					dst_path=(state_model.src_path or '.'),
 					template=previous_event,
 					with_exceptions=True,
 				)
@@ -974,7 +944,6 @@ class MainController(AbstractController):
 						if value.__class__ == list:
 							dst_event.setdefault(key, []).extend(value)
 						else:
-							# dst_event[key] = value
 							dst_event.setdefault(key, value)
 
 				# Replaces first line
@@ -1025,7 +994,7 @@ def run_init():
 	parser.add_argument('-s', '--autostop', action='store_true', help='Stops automatically if test terminates with a failure, prevents exit')
 	parser.add_argument('-e', '--autoexit', action='store_true', help='Exits automatically if test terminates')
 	parser.add_argument('-r', '--with-screencast', action='store_true', help='Writes a video screencast')
-	parser.add_argument('-d', '--disable-observer', action='store_true', help='Disables observing data for external updates and reloading them')
+	parser.add_argument('-d', '--with-observer', action='store_true', default=True, help='Enables observing data for external updates and reloading them')
 	parser.add_argument('--shell-command-prefix', default='', help='Adds prefix to every event named "shell_command"')
 	parser.add_argument('PATH', nargs='?', help='Directory path where to load tests')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
