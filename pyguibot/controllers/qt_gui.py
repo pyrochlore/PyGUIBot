@@ -56,9 +56,9 @@ logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 from PyQt import QtCore, QtGui, QtWidgets, uic
 
-from controllers.abstract import _DefaultDict, AbstractController
+from controllers.abstract import AbstractController
 from helpers.caller import Caller
-from models.abstract import AttrDict, ObservableAttrDict
+from models.abstract import AttrDict, ObservableAttrDict, ObservableList
 # from models.settings import Settings
 
 
@@ -82,8 +82,22 @@ class MainController(AbstractController):
 		state_model.disable_observer = disable_observer
 		state_model.shell_command_prefix = shell_command_prefix
 		state_model.status = 'Click "Play" to (re)run or "Record" to add new events...'
+		state_model.exception = ''
 
-		self._tree_entries_to_lines = []  # Allows to update tree entries separately without re-filling tree itself
+		###
+		if state_model.src_path is None and sys.stdin.isatty():
+			logging.getLogger(__name__).warning('Path is not selected but console is attached')
+		elif state_model.src_path is not None and not os.path.isdir(os.path.dirname(os.path.realpath(state_model.src_path))):
+			logging.getLogger(__name__).warning('Path is selected but directory not exists: %s', os.path.dirname(os.path.realpath(state_model.src_path)))
+			if state_model.autoexit:
+				QtWidgets.QApplication.exit(1)
+		else:
+			if state_model.src_path is not None and not os.path.isfile(state_model.src_path):
+				logging.getLogger(__name__).warning('Path is selected but file not exists: %s, will be created.', state_model.src_path)
+				if state_model.autoexit:
+					QtWidgets.QApplication.exit(1)
+		###
+
 		self._state_colors = dict(ready=None, current='#feb', completed='#cfc', failed='#fcc')
 		self._level_separator = ''  # Can be ['⎯']
 		self._level_passive_point = '◯'  # Can be ['◯']
@@ -182,6 +196,11 @@ class MainController(AbstractController):
 			if current[0] is None or 'status' in current[0]:
 				view.status_label.setText(state_model.status)
 
+			if current[0] is None or 'exception' in current[0]:
+				if state_model.exception:
+					Caller.call_once_after(.1, self._show_exception, message='<small><pre><xmp>{}</xmp></pre></small>'.format(state_model.exception.replace('\n', '<br/>')))
+					state_model.exception = ''
+
 	"""View's event handlers"""
 
 	def __on_close(self, event=None):
@@ -230,7 +249,7 @@ class MainController(AbstractController):
 				'Ctrl+' if QtCore.Qt.ControlModifier & event.modifiers() else '',
 				'Alt+' if QtCore.Qt.AltModifier & event.modifiers() else '',
 				'Shift+' if QtCore.Qt.ShiftModifier & event.modifiers() else '',
-				next(key for key in dir(QtCore.Qt) if key.startswith('Key_') for value in [getattr(QtCore.Qt, key)] if value == event.key()),
+				next((key for key in dir(QtCore.Qt) if key.startswith('Key_') for value in [getattr(QtCore.Qt, key)] if value == event.key()), '<unknown({})>'.format(event.key())),
 			)
 
 	def __on_delete_pressed(self):
@@ -461,7 +480,6 @@ class MainController(AbstractController):
 		return str(index)
 
 	def _fill(self):
-		tree_entries_to_lines = self._tree_entries_to_lines
 		state_model = self._state_model
 		view = self.__view
 		tree = view.commands_tree
@@ -472,32 +490,6 @@ class MainController(AbstractController):
 		scroll_y_position = tree.verticalScrollBar().value()  # Save scroll-y position
 		tree.setIconSize(QtCore.QSize(65535, 64))
 		tree.clear()
-		tree_entries_to_lines[:] = []
-
-		# Opens file with commands or reads from stdin
-		if state_model.src_path is None and sys.stdin.isatty():
-			logging.getLogger(__name__).warning('Path is not selected but console is attached')
-		elif state_model.src_path is not None and not os.path.isdir(os.path.dirname(os.path.realpath(state_model.src_path))):
-			logging.getLogger(__name__).warning('Path is selected but directory not exists: %s', os.path.dirname(os.path.realpath(state_model.src_path)))
-			if state_model.autoexit:
-				QtWidgets.QApplication.exit(1)
-		else:
-			if state_model.src_path is not None and not os.path.isfile(state_model.src_path):
-				logging.getLogger(__name__).warning('Path is selected but file not exists: %s, will be created.', state_model.src_path)
-				if state_model.autoexit:
-					QtWidgets.QApplication.exit(1)
-				# with open(state_model.src_path, 'w') as src:
-				#     pass
-			with open(state_model.src_path) if state_model.src_path is not None else sys.stdin as src:
-				for index, line in enumerate((x.rstrip() for x in src), start=1):
-
-					entry = QtWidgets.QTreeWidgetItem(tree)
-					entry.setFlags(entry.flags() ^ QtCore.Qt.ItemIsDropEnabled)  # Disallow dropping inside item
-
-					tree_entries_to_lines.append((index, entry, line))
-					# self._fill_tree_entry(index, entry, line)
-
-					tree.addTopLevelItem(entry)
 
 		self._fill_tree_entries()
 		self._reset_tree_entries_states()
@@ -515,9 +507,28 @@ class MainController(AbstractController):
 		logging.getLogger(__name__).info('Filled')
 
 	def _fill_tree_entries(self):
-		"""Re-fills tree entries without re-filling the whole tree"""
-		for args in self._tree_entries_to_lines:
-			self._fill_tree_entry(*args)
+		"""Re-fills tree entries without clearing tree"""
+		state_model = self._state_model
+		view = self.__view
+		tree = view.commands_tree
+
+		with self._with_data() as lines:
+			index = 0
+			# Appends or updates entries
+			for index, line in enumerate((x for x in lines), start=1):
+				entry = tree.topLevelItem(index)
+				if entry is None:
+					# Creates entry if not exists
+					entry = QtWidgets.QTreeWidgetItem(tree)
+					entry.setFlags(entry.flags() ^ QtCore.Qt.ItemIsDropEnabled)  # Disallow dropping inside item
+					tree.addTopLevelItem(entry)
+
+				self._fill_tree_entry(index, entry, line)
+
+			# Removes superfluous entries
+			for index in range(index, tree.topLevelItemCount()):
+				entry = tree.topLevelItem(index)
+				tree.takeTopLevelItem(index)
 
 	def _fill_tree_entry(self, index, entry, line):
 		state_model = self._state_model
@@ -550,20 +561,14 @@ class MainController(AbstractController):
 
 		if 'value' in event:
 			value = event['value']
-			value = re.sub('\{(\w+)\}', '{{\\1}}({env[\\1]})', value)  # Allows to see a variable name with its current value
-			text[3] += (text[3] and ', ') + '"' + value.format(
-				env=_DefaultDict(
-					os.environ,
-					# default=lambda k: ('{{env[{}]}}'.format(k)),
-					default=lambda k: ('<none>'),  # Allows to see current value (or <none> if not set)
-				),
-			) + '"'
+			# value = re.sub('\{(\w+)\}', '{{\\1}}({env[\\1]})', value)  # Allows to see a variable name with its current value
+			text[3] += (text[3] and ', ') + '"' + self._substitute_variables_with_keys_values(value, default='<none>') + '"'
 
 		if 'timeout' in event:
 			text[3] += (text[3] and ', ') + 'wait {}s'.format(event['timeout'])
 
 		if 'message' in event:
-			text[3] += (text[3] and ', ') + '"' + event['message'] + '"'
+			text[3] += (text[3] and ', ') + '"' + self._substitute_variables_with_keys_values(event['message'], default='<none>') + '"'
 
 		if event is not None and 'patterns' in event:
 			border = 1
@@ -571,12 +576,9 @@ class MainController(AbstractController):
 			patterns_paths = [
 				os.path.join(
 					(os.path.dirname(os.path.realpath(state_model.src_path)) if state_model.src_path is not None else '.'),
-					x.format(
-						env=_DefaultDict(os.environ, default=lambda k: ('{{env[{}]}}'.format(k))),
-					)
-				)
-					for x in event['patterns']
-				]
+					self._substitute_variables_with_values(x, default='default'),
+				) for x in event['patterns']
+			]
 			for pattern_path in patterns_paths:
 				if not os.path.exists(pattern_path):
 					logging.getLogger(__name__).error('Pattern not exists: %s', pattern_path.rsplit(os.path.sep, 1)[1])
@@ -615,6 +617,14 @@ class MainController(AbstractController):
 				entry.setToolTip(_index, '#{}  {}'.format(index, line))
 				entry.setStatusTip(_index, '#{}  {}'.format(index, line))
 
+	@staticmethod
+	def _show_exception(message):
+		QtWidgets.QMessageBox(
+			QtWidgets.QMessageBox.Critical,
+			'Exception!',
+			'<small><xmp>{}</xmp></small>'.format(message.replace('\n', '<br/>')),
+		).exec_()
+
 	def _run(self):
 		state_model = self._state_model
 		view = self.__view
@@ -652,19 +662,24 @@ class MainController(AbstractController):
 				stdout=subprocess.PIPE,
 				stderr=subprocess.PIPE,
 			)
+			error_messages = []
 
 			def read_stdout():
 				# while process.poll() is None and not process.stdout.closed and process.returncode is None:
 				#     line = process.stdout.readline().rstrip()
-				for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
-					if not line:  # Probably process was terminated
-						break
-					try:
-						# logging.getLogger(__name__).debug('STDOUT: %s', line)
-						print(datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], '{0.f_code.co_filename}:{0.f_lineno}'.format(sys._getframe()), line, file=sys.stdout); sys.stdout.flush()
-					except Exception as e:
-						print('Exception in thread:', file=sys.stderr); sys.stderr.flush()
-						print(e, file=sys.stderr); sys.stderr.flush()
+				try:
+					for line in (x.rstrip() for x in iter(process.stdout.readline, '')):
+						if not line:  # Probably process was terminated
+							break
+						try:
+							# logging.getLogger(__name__).debug('STDOUT: %s', line)
+							print(datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3], '{0.f_code.co_filename}:{0.f_lineno}'.format(sys._getframe()), line, file=sys.stdout); sys.stdout.flush()
+						except Exception as e:
+							print('Exception in thread:', file=sys.stderr); sys.stderr.flush()
+							print(e, file=sys.stderr); sys.stderr.flush()
+				except ValueError:
+					logging.getLogger(__name__).warning('ValueError raised, ignoring.')
+					# raise
 				logging.getLogger(__name__).debug('Subprocess stdout loop is closed')
 			stdout_thread = threading.Thread(target=read_stdout)
 			stdout_thread.daemon = True
@@ -673,39 +688,44 @@ class MainController(AbstractController):
 			def read_stderr():
 				# while process.poll() is None and not process.stderr.closed and process.returncode is None:
 				#     line = process.stderr.readline().rstrip()
-				for line in (x.rstrip() for x in iter(process.stderr.readline, '')):
-					if not line:  # Probably process was terminated
-						break
-					try:
-						if line.startswith('Status='):
-							value = line.split('=', 1)[1]
-							if value.startswith('{'):
-								status = ast.literal_eval(value)
-								entry = tree.topLevelItem(int(status['index']))
-								if entry is not None:
-									if status.get('code', False):
-										entry.setText(0, '' if status['code'] == 'current' else '')
-										entry.setForeground(1, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-										entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-										entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
-									tree.scrollToItem(entry, tree.EnsureVisible)
-								tree.viewport().update()  # Force update (fix for Qt5)
-						elif line.startswith('Env='):
-							value = line.split('=', 1)[1]
-							if value.startswith('{'):
-								env = ast.literal_eval(value)
-								os.environ.update(env)
-								# Caller.call_once_after(0, self._fill)
-								Caller.call_once_after(0, self._fill_tree_entries)
-						elif '[DEBUG]  ' in line:
-							logging.getLogger(__name__).debug(line)
-						elif '[INFO]  ' in line:
-							logging.getLogger(__name__).info(line)
-						else:
-							logging.getLogger(__name__).error(line)
-					except Exception as e:
-						print('Exception in thread:', file=sys.stderr); sys.stderr.flush()
-						print(e, file=sys.stderr); sys.stderr.flush()
+				try:
+					for line in (x.rstrip() for x in iter(process.stderr.readline, '')):
+						if not line:  # Probably process was terminated
+							break
+						try:
+							if line.startswith('Status='):
+								value = line.split('=', 1)[1]
+								if value.startswith('{'):
+									status = ast.literal_eval(value)
+									entry = tree.topLevelItem(int(status['index']))
+									if entry is not None:
+										if status.get('code', False):
+											entry.setText(0, '' if status['code'] == 'current' else '')
+											entry.setForeground(1, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+											entry.setBackground(2, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+											entry.setBackground(3, QtGui.QBrush(QtGui.QColor(self._state_colors[status['code']])))
+										tree.scrollToItem(entry, tree.EnsureVisible)
+									tree.viewport().update()  # Force update (fix for Qt5)
+							elif line.startswith('Env='):
+								value = line.split('=', 1)[1]
+								if value.startswith('{'):
+									env = ast.literal_eval(value)
+									os.environ.update(env)
+									# Caller.call_once_after(0, self._fill)
+									Caller.call_once_after(0, self._fill_tree_entries)
+							elif '[DEBUG]  ' in line:
+								logging.getLogger(__name__).debug(line)
+							elif '[INFO]  ' in line:
+								logging.getLogger(__name__).info(line)
+							else:
+								logging.getLogger(__name__).error(line)
+								error_messages.append(line)
+						except Exception as e:
+							print('Exception in thread:', file=sys.stderr); sys.stderr.flush()
+							print(e, file=sys.stderr); sys.stderr.flush()
+				except ValueError:
+					logging.getLogger(__name__).warning('ValueError raised, ignoring.')
+					# raise
 				logging.getLogger(__name__).debug('Subprocess stderr loop is closed')
 			stderr_thread = threading.Thread(target=read_stderr)
 			stderr_thread.daemon = True
@@ -713,11 +733,17 @@ class MainController(AbstractController):
 
 			def check_if_alive():
 				with self._with_status('Please wait...'):
-					process.wait()
+					# process.wait()
+					stdout, stderr = process.communicate()  # Waits and reads out stdout/stderr pipes
 				exit_code = process.returncode
 
 				if exit_code:
 					logging.getLogger(__name__).error('Subprocess was terminated with exit code %s', exit_code)
+
+					stderr = '\n'.join(error_messages) + stderr
+					if stderr:
+						# logging.getLogger(__name__).warning('stderr=' + '%s', stderr)
+						state_model.exception = stderr
 				else:
 					logging.getLogger(__name__).info('Subprocess was terminated')
 
@@ -819,7 +845,8 @@ class MainController(AbstractController):
 
 			# Keeps last line index
 			with self._with_data() as lines:
-				previous_last_index = len(lines)
+				previous_index = len(lines)
+				logging.getLogger(__name__).warning('previous_index=' + '%s', previous_index)
 
 			def check_if_alive():
 				with self._with_status('Press "Pause" or "Insert" to create new event...'):
@@ -828,14 +855,21 @@ class MainController(AbstractController):
 				logging.getLogger(__name__).info('Subprocess is terminated with exit code %s', exit_code)
 				state_model.process = None
 
-				# Checks if new lines appeared
-				with self._with_data() as lines:
-					new_last_index = len(lines)
-				count = new_last_index - previous_last_index
+				# Moves new lines to selection
 				indices = set([x.row() for x in tree.selectedIndexes()])
-				if count > 0 and indices:
-					# Moves them after selected lines
-					self._move(from_index=previous_last_index, to_index=max(indices) + 1, count=count)
+				if indices:
+					to_index = max(indices)
+					with self._with_data() as lines:
+						new_index = len(lines)
+						to_event = self._restore(lines[to_index])
+
+					# Checks if new lines appeared
+					count = new_index - previous_index
+					if count > 0:
+						# Shifts them as selection
+						self._shift(indices=range(previous_index, new_index), count=to_event['level'])
+						# Moves them after selection
+						self._move(from_index=previous_index, to_index=to_index + 1, count=count)
 			is_alive_thread = threading.Thread(target=check_if_alive)
 			is_alive_thread.daemon = True
 			is_alive_thread.start()
@@ -853,15 +887,30 @@ class MainController(AbstractController):
 		state_model = self._state_model
 
 		# Loads lines
-		events_path = state_model.src_path or './events.pyguibot'
-		with open(events_path) as src:
-			lines = src.readlines()
+		with (
+				open(state_model.src_path)
+				if state_model.src_path is not None and os.path.exists(state_model.src_path) else
+				contextlib.nullcontext(enter_result=(None if sys.stdin.isatty() else sys.stdin))  # From stdin or nowhere
+		) as src:
+			lines = ObservableList(src.readlines() if src is not None else [])
+
+		# Monitors if list was changed
+		state = dict(save=False)
+		def on_updated(model=None, previous=(None, ), current=(None, )):
+			if previous[0] != current[0]:
+				state['save'] = True
+		lines.changed.bind(on_updated)
 
 		yield lines
 
-		# Saves lines
-		with open(events_path, 'w') as dst:
-			print(''.join(lines), end='', file=dst)
+		if state['save']:
+			# Saves lines
+			if not state_model.src_path:
+				state_model.src_path = self._save()
+
+			if state_model.src_path:
+				with open(state_model.src_path, 'w') as dst:
+					print(''.join(lines), end='', file=dst)
 
 	def _delete(self, index, count):
 		with self._with_data() as lines:
@@ -887,17 +936,16 @@ class MainController(AbstractController):
 
 		try:
 			with self._with_data() as lines:
-				previous_event = self._restore(lines[index].rstrip('\n'))
+				previous_event = self._restore(lines[index])
 
-			# Create
-			with open(state_model.src_path or './events.pyguibot', 'a') as dst:
-				self._create(dst_path=state_model.src_path or './events.pyguibot', dst=dst, with_exceptions=True, previous_event=previous_event)
+				# Creates
+				event = self._create(
+					dst_path=(state_model.src_path or '.'),
+					template=previous_event,
+					with_exceptions=True,
+				)
 
-			# Delete previous
-			self._delete(index=index, count=1)
-
-			# Move new to previous
-			self._move(from_index=-1, to_index=index, count=1)
+				lines[index] = self._dump(event)
 		except subprocess.CalledProcessError:
 			pass
 
@@ -921,7 +969,7 @@ class MainController(AbstractController):
 			if indices:
 				# Combines values
 				dst_event = dict()
-				for src_event in [self._restore(lines[index].rstrip('\n')) for index in sorted(indices)]:
+				for src_event in [self._restore(lines[index]) for index in sorted(indices)]:
 					for key, value in list(src_event.items()):
 						if value.__class__ == list:
 							dst_event.setdefault(key, []).extend(value)
@@ -930,7 +978,7 @@ class MainController(AbstractController):
 							dst_event.setdefault(key, value)
 
 				# Replaces first line
-				lines[min(indices)] = self._dump(dst_event) + '\n'
+				lines[min(indices)] = self._dump(dst_event)
 
 				# Removes other lines
 				for index in reversed(sorted(indices - set([min(indices)]))):
@@ -940,18 +988,18 @@ class MainController(AbstractController):
 		with self._with_data() as lines:
 			if indices:
 				for index in indices:
-					src_event = self._restore(lines[index].rstrip('\n'))
+					src_event = self._restore(lines[index])
 
 					# Splits event
 					dst_events = [dict(src_event, **(dict(patterns=[x]) if x is not None else dict())) for x in src_event.get('patterns', [None])]
 
 					# Replaces previous event with new events
-					lines[index:(index + 1)] = [self._dump(x) + '\n' for x in dst_events]
+					lines[index:(index + 1)] = [self._dump(x) for x in dst_events]
 
 	def _open_gimp(self, indices):
 		with self._with_data() as lines:
 			if indices:
-				events = [self._restore(lines[index].rstrip('\n')) for index in sorted(indices)]
+				events = [self._restore(lines[index]) for index in sorted(indices)]
 				patterns = [xx for x in events for xx in x.get('patterns', [])]
 				if patterns:
 					command = 'gimp ' + ' '.join(pipes.quote(x) for x in patterns)

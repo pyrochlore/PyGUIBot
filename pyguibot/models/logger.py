@@ -39,6 +39,8 @@ class Logger(object):
 	""""""
 
 	def __init__(self, tapped=None, moved=None, clicked=None, scrolled=None):
+		self._interrupt = False
+
 		self._keyboard_events = keyboard_events = pykeyboard.PyKeyboardEvent()
 		keyboard_events.tap = tapped
 
@@ -71,13 +73,18 @@ class Logger(object):
 
 		try:
 			while (True):
-				sys.stdout.write('.'); sys.stdout.flush()  # FIXME: must be removed/commented
+				# sys.stdout.write('.'); sys.stdout.flush()  # FIXME: must be removed/commented
 				try:
+					if self._interrupt:
+						break
 					time.sleep(.1)
 				except KeyboardInterrupt:
 					break
 		finally:
 			self._keyboard_events.stop()
+
+	def exit(self):
+		self._interrupt = True
 
 	# """Helpers"""
 

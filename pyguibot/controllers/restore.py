@@ -138,7 +138,7 @@ class RestoreController(AbstractController):
 					if from_line is not None and index < from_line or to_line is not None and to_line < index:
 						continue
 
-					event = self._restore(line.rstrip('\n'))
+					event = self._restore(line)
 
 					# Skips empty lines and comments
 					if 'comments' in event:  # If line is commented
@@ -172,7 +172,7 @@ class RestoreController(AbstractController):
 								patterns_paths = [
 									os.path.join(
 										os.path.dirname(os.path.realpath(self._src_path)) if self._src_path is not None else '.',
-										self._substitute_variables(x)
+										self._substitute_variables_with_values(x)
 									)
 									for x in event['patterns']
 								]
@@ -203,24 +203,27 @@ class RestoreController(AbstractController):
 						logging.getLogger(__name__).debug('Making event %s', event['type'])
 
 						if event['type'] == 'delay':
-							value = self._substitute_variables(event['value'])
+							value = self._substitute_variables_with_values(event['value'])
 							time.sleep(float(value))
 						elif event['type'] in ('jump', 'break'):
 							time.sleep(.2)
-							value = self._substitute_variables(event['value'])
+							value = self._substitute_variables_with_values(event['value'])
 							if str(value)[:1] in '-+':
 								event['level'] += 1 + int(value)
 							else:
 								event['level'] = int(value)
-							raise Break('{type}ing to {event[level]} with{message}.'.format(
-								type=event['type'].title(),
-								message=' message "{event[message]}"'.format(**locals()) if 'message' in event else ' no message',
-								**locals()
-							))
+							raise Break(
+								'{type}ing to {event[level]}'.format(
+									type=event['type'].title(),
+									**locals()
+								) + (
+									(' with message "' + self._substitute_variables_with_keys_values(event['message'], default='<none>') + '"') if 'message' in event else ''
+								)
+							)
 						elif event['type'] == 'equation':
 							# time.sleep(.2)
 							key, equation = [x.strip() for x in event['value'].split('=', 1)]
-							equation = self._substitute_variables(equation, env=_DefaultDict(
+							equation = self._substitute_variables_with_values(equation, env=_DefaultDict(
 								os.environ,
 								default=lambda k: (None),  # Allows to write "X = {X} or 0" in order to initiate variable X
 							))
@@ -230,7 +233,7 @@ class RestoreController(AbstractController):
 							# time.sleep(.2)
 						elif event['type'] == 'condition':
 							# time.sleep(.2)
-							condition = self._substitute_variables(event['value'])
+							condition = self._substitute_variables_with_values(event['value'])
 							value = bool(numexpr.evaluate(condition))
 							if not value:
 								raise Break('Condition not satisfied, breaking with{message}.'.format(
@@ -239,7 +242,7 @@ class RestoreController(AbstractController):
 								))
 							# time.sleep(.2)
 						elif event['type'] == 'shell_command':
-							shell_command = shell_command_prefix + self._substitute_variables(event['value'])
+							shell_command = shell_command_prefix + self._substitute_variables_with_values(event['value'])
 							logging.getLogger(__name__).debug('Command: %s', shell_command)
 							process = subprocess.Popen(
 								shell_command,
@@ -254,19 +257,19 @@ class RestoreController(AbstractController):
 									raise Break('Command was terminated with exit code {exit_code}.'.format(**locals()))
 						elif event['type'] == 'keyboard_press':
 							time.sleep(.2)
-							self._tap(self._substitute_variables(event['value']), delay=.08)
+							self._tap(self._substitute_variables_with_values(event['value']), delay=.08)
 						elif event['type'] == 'keyboard_release':
 							time.sleep(.2)
-							self._tap(self._substitute_variables(event['value']), delay=.08)
+							self._tap(self._substitute_variables_with_values(event['value']), delay=.08)
 						elif event['type'] == 'keyboard_tap':
 							time.sleep(.2)
-							self._tap(self._substitute_variables(event['value']), delay=.08)
+							self._tap(self._substitute_variables_with_values(event['value']), delay=.08)
 						elif event['type'] == 'keyboard_type':
 							time.sleep(.2)
-							value = self._substitute_variables(event['value'])
+							value = self._substitute_variables_with_values(event['value'])
 							Keyboard.type(value, interval=.15)
 							# print >>sys.stderr, 'event["value"]=', event["value"]; sys.stderr.flush()  # FIXME: must be removed/commented
-							# for character in self._substitute_variables(event['value']):
+							# for character in self._substitute_variables_with_values(event['value']):
 							#     Keyboard.press(character)
 							#     print >>sys.stderr, '{} pressed'.format(character); sys.stderr.flush()  # FIXME: must be removed/commented
 							#     time.sleep(.25)

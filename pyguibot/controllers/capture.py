@@ -4,6 +4,7 @@
 "exec" "python3" "-B" "$0" "$@"
 # (c) gehrmann
 
+import contextlib
 import logging
 import os
 import signal
@@ -51,9 +52,7 @@ class CaptureController(AbstractController):
 
 		self._log_event_thread = None
 
-		if dst_path is not None and os.path.isdir(os.path.dirname(os.path.realpath(dst_path))) and not os.path.exists(dst_path):
-			with open(dst_path, 'w') as dst:
-				pass
+		self._logger = Logger(tapped=self.__on_key_triggered)
 
 		# Screen._print_backends()
 
@@ -63,16 +62,34 @@ class CaptureController(AbstractController):
 		"""Callback for key press/release"""
 		logging.getLogger(__name__).debug('Key %s%s', '+' if press else '-', key)
 
-		if key in ('Pause', 'Break', 'Insert'):
+		if key in ('Break', ):
 			if press:
-				if key == 'Break':
-					pass
+				logging.getLogger(__name__).info('Terminated by user')
+				self._logger.exit()
 
+		elif key in ('Pause', 'Insert'):
+			if press:
 				# Only one running thread is allowed. Skips if it is already running.
 				if self._log_event_thread is not None and self._log_event_thread.is_alive():
 					pass
 				else:
-					self._log_event_thread = thread = threading.Thread(target=self._create, kwargs=dict(dst_path=self._dst_path, dst=self._dst))
+					def create():
+						with (
+								contextlib.nullcontext(enter_result=sys.stdout)
+								if not self._dst_path or os.path.exists(self._dst_path) and os.path.isdir(self._dst_path) else
+								open(self._dst_path, 'a')
+						) as dst:
+							try:
+								event = self._create(
+									dst_path=self._dst_path,
+									with_exceptions=True,
+								)
+							except Exception as e:
+								pass
+							else:
+								print(self._dump(event), end='', file=dst)
+								dst.flush()
+					self._log_event_thread = thread = threading.Thread(target=create)
 					thread.setDaemon(True)
 					thread.start()
 
@@ -84,16 +101,14 @@ class CaptureController(AbstractController):
 	"""Helpers"""
 
 	def loop(self):
-		with open(self._dst_path or './events.pyguibot', 'a') as self._dst:
-			logger = Logger(tapped=self.__on_key_triggered)
-			logger.loop()
+		self._logger.loop()
 
 
 def run_init():
 	"""Runs command-line capture tool."""
 	import argparse
 	parser = argparse.ArgumentParser(description=__doc__)
-	parser.add_argument('-p', '--path', required=bool(sys.stdin.isatty()), help='Directory path where to load tests')
+	parser.add_argument('-p', '--path', default='', help='Directory path where to load tests')
 	parser.add_argument('-v', '--verbose', action='count', help='Raises logging level')
 	kwargs = vars(parser.parse_known_args()[0])  # Breaks here if something goes wrong
 

@@ -42,56 +42,83 @@ class AbstractController(object):
 	"""Abstract class for every controller"""
 
 	def _dump(self, event):
-		"""Dumps event to string"""
+		"""Dumps event to string with a trailing newline"""
 		_event = event.copy()
 		comments = _event.pop('comments', '')
 		level = _event.pop('level')
-		return '\t' * level + (str(_event) if _event else '') + ('  ' if _event and comments else '') + comments
+		return '\t' * level + (str(_event) if _event else '') + ('  ' if _event and comments else '') + comments + os.linesep
 
 	def _restore(self, data):
-		"""Parses raw data, returns a dict-like object"""
+		"""Parses raw string with a trailing newline, returns a dict-like object"""
+		data = data.rstrip(os.linesep)
 		event = ast.literal_eval(data.lstrip()) if data.lstrip().startswith('{') else dict(comments=data.lstrip())
 		event['level'] = (len(data) - len(data.lstrip()))
 		return event
 
-	def _create(self, dst_path, dst, with_exceptions=False, filename_type='datetime', previous_event=None):
+	def _create(self, dst_path, template={}, with_exceptions=False, filename_type='datetime'):
+		dst_path = os.path.realpath(dst_path or '.')
+		dst_directory_path = dst_path if os.path.isdir(dst_path) else os.path.dirname(dst_path)
+
 		if filename_type == 'incremental':
-			pattern_filename = self._generate_incremental_filename(os.path.dirname(os.path.realpath(dst_path)))
+			pattern_filename = self._generate_incremental_filename(dst_directory_path)
 		elif filename_type == 'datetime':
-			pattern_filename = self._generate_datetime_filename(os.path.dirname(os.path.realpath(dst_path)))
+			pattern_filename = self._generate_datetime_filename(dst_directory_path)
 		pattern_filename += '.png'
 
-		pattern_path = os.path.join(os.path.dirname(os.path.realpath(dst_path)), pattern_filename)
+		pattern_path = os.path.join(dst_directory_path, pattern_filename)
 
 		try:
 			try:
-				# Asks for event type
-				event_type = self._interactive_select_event_type()
-				event = dict(previous_event or dict(level=0), **dict(type=event_type))
+				event = dict(
+					level=template.get('level', 0),
+				)
+
+				event['type'] = event_type = self._interactive_select_event_type()
 
 				if event_type == 'delay':
 					event['value'] = self._interactive_input_value(message='Enter delay (in s.)')
 
 				elif event_type in ('jump', 'break'):
-					event['value'] = self._interactive_input_value(message='Enter number of shifts to {event[type]} (-+ for relative)'.format(**locals()))
-					event['message'] = self._interactive_input_value(message='Enter message')
-
-				elif event_type == 'keyboard_type':
-					event['value'] = self._interactive_input_value(message='Enter string to type')
+					event['value'] = self._interactive_input_value(
+						message='Enter number of shifts to {event[type]} (-+ for relative)'.format(**locals()),
+						value=template.get('value', None),
+					)
+					event['message'] = self._interactive_input_value(
+						message='Enter message',
+						value=template.get('message', None),
+					)
 
 				elif event_type == 'equation':
-					event['value'] = self._interactive_input_value(message='Enter equation (for example, X = {X} + 1)')
+					event['value'] = self._interactive_input_value(
+						message='Enter equation (for example, X = {X} + 1)',
+						value=template.get('value', None),
+					)
 
 				elif event_type == 'condition':
-					event['value'] = self._interactive_input_value(message='Enter condition (for example, {X} == 5)')
+					event['value'] = self._interactive_input_value(
+						message='Enter condition (for example, {X} == 5)',
+						value=template.get('value', None),
+					)
 
 				elif event_type == 'shell_command':
-					event['value'] = self._interactive_input_value(message='Enter shell command')
+					event['value'] = self._interactive_input_value(
+						message='Enter shell command',
+						value=template.get('value', None),
+					)
+
+				elif event_type == 'keyboard_type':
+					event['value'] = self._interactive_input_value(
+						message='Enter string to type',
+						value=template.get('value', None),
+					)
 
 				elif event_type in ('keyboard_tap', 'keyboard_press', 'keyboard_release'):
 					# If self-object does not listen to keyboard events
 					if not hasattr(self, '_key_sequence'):
-						event['value'] = self._interactive_input_value(message='Enter key sequence ("+" for key press, "-" for key release, comma-separated)', value=event['value'])
+						event['value'] = self._interactive_input_value(
+							message='Enter key sequence ("+" for key press, "-" for key release, comma-separated)',
+							value=template.get('value', None),
+						)
 					else:
 						self._key_sequence[:] = []
 						self._capture_keys = True
@@ -135,12 +162,10 @@ class AbstractController(object):
 					#     except ValueError:
 					#         pass
 
-				# Saves event
 				logging.getLogger(__name__).info(repr(event))
-				print(self._dump(event), file=dst)
-				dst.flush()
+				return event
 
-			except:
+			except Exception:
 				# Removes unused screenshot
 				if os.path.exists(pattern_path):
 					os.unlink(pattern_path)
@@ -164,12 +189,30 @@ class AbstractController(object):
 		return datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S.%f')[:-3]
 
 	@staticmethod
-	def _substitute_variables(value, env=None):
+	def _substitute_variables_with_values(value, env=None, default=None):
 		"""Replaces every {key} (or {env[key]}) with its environment variable"""
 		value = re.sub('\{(\w+)\}', '{env[\\1]}', value)  # Allows to write {X} instead of {env[X]}
-		value = value.format(
-			env=(os.environ if env is None else env),
-		)
+		env = os.environ if env is None else env
+		if default is not None:
+			env = _DefaultDict(
+				env,
+				default=(lambda x: (lambda k: (x)))(default),  # Allows to see default value if not set)
+			)
+		value = value.format(env=env)
+		return value
+
+	@staticmethod
+	def _substitute_variables_with_keys_values(value, env=None, default=None):
+		"""Replaces every {key} (or {env[key]}) with {key}(value|default)"""
+		# value = re.sub('\{(\w+)\}', '{{\\1}}({env[\\1]})', value)  # Allows to see a variable name with its current value
+		value = re.sub('\{(\w+)\}', '\\1[{env[\\1]}]', value)  # Allows to see a variable name with its current value
+		env = os.environ if env is None else env
+		if default is not None:
+			env = _DefaultDict(
+				env,
+				default=(lambda x: (lambda k: (x)))(default),  # Allows to see default value if not set)
+			)
+		value = value.format(env=env)
 		return value
 
 	@staticmethod

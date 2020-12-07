@@ -198,10 +198,10 @@ class ObservableList(list, _NestedObservablesMixin):
 		# return hash(repr(self))
 
 	def __setitem__(self, index, value):
-		if len(self) <= index or self[index] != value:
-			previous = (self._unbind_changed({(index, index + 1): [self[index]]}), )
+		if (not isinstance(index, slice) and len(self) <= index) or self[index] != value:
+			previous = (self._unbind_changed({((index.start, index.stop) if isinstance(index, slice) else (index, index + 1)): [self[index]]}), )
 			super(ObservableList, self).__setitem__(index, value)
-			current = (self._bind_changed({(index, index + 1): [self[index]]}), )
+			current = (self._bind_changed({((index.start, index.stop) if isinstance(index, slice) else (index, index + 1)): [self[index]]}), )
 			self.changed(self, previous=previous, current=current)
 
 	def __delitem__(self, index):
