@@ -112,7 +112,7 @@ class RestoreController(AbstractController):
 			# ffmpeg -video_size 1280x748 -framerate 25 -f x11grab -i :0.0+64,20 output.mp4
 			# ffmpeg -video_size 1280x748 -framerate 25 -f x11grab -i :0.0+64,20
 			x_shift = 64
-			command = "ffmpeg -video_size {width}x{height} -framerate 15 -f x11grab -i {display}+{x},{y} \"{path}\" 2>&1".format(
+			command = "ffmpeg -video_size {width}x{height} -framerate 15 -f x11grab -i {display}+{x},{y} -c:v libx264 -preset slow -crf 22 -c:a copy \"{path}\" 2>&1".format(
 				# display=':0.0', x=0, y=0,
 				display=':0.0', x=x_shift, y=0,  # Does not work well with y-shift
 				width=screen.width - x_shift, height=screen.height - 0,
