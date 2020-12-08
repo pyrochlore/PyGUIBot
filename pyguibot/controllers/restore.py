@@ -15,6 +15,7 @@ import multiprocessing
 import numpy
 import numexpr
 import os
+import screeninfo
 import shutil
 import signal
 import subprocess
@@ -99,27 +100,29 @@ class RestoreController(AbstractController):
 			except Exception:
 				pass
 
-			command = 'xdpyinfo'
-			result = subprocess.check_output(command)
-			for line in (x.strip() for x in result.splitlines()):
-				if line.startswith('dimensions:'):
-					screen_width, screen_height = [x for x in line.split(' ') if x][1].split('x')
-					break
-			else:
-				raise Exception('Can not detect screen resolution.')
+			screen = screeninfo.get_monitors()[0]
+			logging.getLogger(__name__).warning('screen=' + '%s', screen)
+
 			# Runs new screen record (binary "avconv" from package "libav-tools")
 			# With audio:
-			# command = "avconv -f alsa -ac 2 -i {audio_device} -f x11grab -r {fps} -s {width}x{height} -i {display}+{x},{y} {audio_codec_options} {video_codec_options} -threads {threads} \"{path}\""
+			# command = "avconv -f alsa -ac 2 -i {audio_device} -f x11grab -r 15 -s {width}x{height} -i {display}+{x},{y} {audio_codec_options} {video_codec_options} -threads {threads} \"{path}\""
 			# Without audio:
-			command = "avconv -loglevel error -f x11grab -r {fps} -s {width}x{height} -i {display}+{x},{y} {video_codec_options} -threads {threads} \"{path}\""
-			command = command.format(
-				display=':0.0', x=0, y=0, width=screen_width, height=screen_height,
-				audio_device='pulse',
-				audio_codec_options='-an',  # Disables audio (was '-acodec libvorbis -ab 320k')
-				video_codec_options='-vcodec libx264 -preset ultrafast -g 15 -crf 0 -pix_fmt yuv444p',
-				threads=multiprocessing.cpu_count(), fps=15,
-				path=path,
+			# command = "avconv -loglevel error -f x11grab -r 15 -s {width}x{height} -i {display}+{x},{y} {video_codec_options} -threads {threads} \"{path}\""
+			# command = "avconv -loglevel error -f x11grab -r 15 -s {screen.width}x{screen.height} -i {display}+{x},{y} {video_codec_options} -threads {threads} \"{path}\""
+			# ffmpeg -video_size 1280x748 -framerate 25 -f x11grab -i :0.0+64,20 output.mp4
+			# ffmpeg -video_size 1280x748 -framerate 25 -f x11grab -i :0.0+64,20
+			x_shift = 64
+			command = "ffmpeg -video_size {width}x{height} -framerate 15 -f x11grab -i {display}+{x},{y} \"{path}\" 2>&1".format(
+				# display=':0.0', x=0, y=0,
+				display=':0.0', x=x_shift, y=0,  # Does not work well with y-shift
+				width=screen.width - x_shift, height=screen.height - 0,
+				# audio_device='pulse',
+				# audio_codec_options='-an',  # Disables audio (was '-acodec libvorbis -ab 320k')
+				# video_codec_options='-vcodec libx264 -preset ultrafast -g 15 -crf 0 -pix_fmt yuv444p',
+				# threads=multiprocessing.cpu_count(),
+				**locals()
 			)
+			logging.getLogger(__name__).warning('command=' + '%s', command)
 			logging.getLogger(__name__).info('Screen is recording into "%s"', path)
 			# logging.getLogger(__name__).debug('Command: %s', command)
 			# process = subprocess.Popen(command, shell=True, text=True, preexec_fn=os.setsid, stdout=open(os.devnull, 'w'), stderr=open(os.devnull, 'w'))
@@ -522,7 +525,7 @@ class RestoreController(AbstractController):
 
 def run_find_template():
 	"""Only for developing purposes"""
-	src_path = 'data/events.pyguibot'
+	src_path = 'data/scenario.pyguibot'
 	template = RestoreController._load_array(os.path.join(os.path.dirname(os.path.realpath(src_path)), '.pattern.png'))
 	screenshot = RestoreController._load_array(os.path.join(os.path.dirname(os.path.realpath(src_path)), '.screenshot.png'))
 	threshold = .8

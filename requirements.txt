@@ -3,5 +3,6 @@ numexpr
 numpy
 opencv-python
 pyuserinput
+screeninfo
 watchdog
 wxpython

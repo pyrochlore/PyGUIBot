@@ -62,7 +62,7 @@ from helpers.caller import Caller
 
 
 class MainController(AbstractController):
-	def __init__(self, path, verbose, geometry, autorun, autostop, autoexit, close_on_escape, with_screencast, with_observer, shell_command_prefix):
+	def __init__(self, path, verbose, geometry, autorun, autostop, autoexit, with_close_on_escape, with_screencast, with_observer, shell_command_prefix):
 		super(MainController, self).__init__(path=path)
 		state_model = self._state_model
 
@@ -74,7 +74,7 @@ class MainController(AbstractController):
 		state_model.process = None
 		state_model.autostop = autostop
 		state_model.autoexit = autoexit
-		state_model.close_on_escape = close_on_escape
+		state_model.with_close_on_escape = with_close_on_escape
 		state_model.with_screencast = with_screencast
 		state_model.with_observer = with_observer
 		state_model.shell_command_prefix = shell_command_prefix
@@ -217,7 +217,7 @@ class MainController(AbstractController):
 			if state_model.process is not None:
 				self._stop()
 			else:
-				if state_model.close_on_escape:
+				if state_model.with_close_on_escape:
 					self.__view.close()
 		elif event.modifiers() == (QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier) and event.key() == QtCore.Qt.Key_I:
 			QtCore.pyqtRemoveInputHook()
@@ -988,7 +988,7 @@ class MainController(AbstractController):
 
 
 def run_init():
-	"""Shows pyguibot Qt GUI."""
+	"""Shows Qt GUI."""
 	import argparse
 	parser = argparse.ArgumentParser(description=__doc__)
 	# parser.add_argument('-p', '--path', required=bool(sys.stdin.isatty()), help='Directory path where to load tests')
@@ -998,7 +998,7 @@ def run_init():
 	parser.add_argument('-a', '--autorun', action='store_true', help='Starts test automatically after launch')
 	parser.add_argument('-s', '--autostop', action='store_true', help='Stops automatically if test terminates with a failure, prevents exit')
 	parser.add_argument('-e', '--autoexit', action='store_true', help='Exits automatically if test terminates')
-	parser.add_argument('-c', '--close-on-escape', action='store_true', help='Allows close if ESC key pressed')
+	parser.add_argument('-c', '--with-close-on-escape', action='store_true', help='Allows close if ESC key pressed')
 	parser.add_argument('-r', '--with-screencast', action='store_true', help='Writes a video screencast')
 	parser.add_argument('-d', '--with-observer', action='store_true', default=True, help='Enables observing data for external updates and reloading them')
 	parser.add_argument('--shell-command-prefix', default='', help='Adds prefix to every event named "shell_command"')
