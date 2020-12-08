@@ -171,33 +171,42 @@ class AbstractController(object):
 				)
 
 			elif event_type in ('keyboard_tap', 'keyboard_press', 'keyboard_release'):
-				# If self-object does not listen to keyboard events
-				if not hasattr(self, '_key_sequence'):
-					event['value'] = self._interactive_input_value(
-						message='Enter key sequence ("+" - press, "-" - release, comma-separated, for example +Return,-Return,+Left,-Left)',
-						value=template.get('value', None),
-					)
-				else:
-					self._key_sequence[:] = []
-					self._capture_keys = True
+				value = None
+
+				# If self-object listens to keyboard events (capture.py)
+				if hasattr(state_model, 'key_sequence'):
+					state_model.key_sequence[:] = []
+					state_model.capture_keys = True
 
 					try:
 						# Waits for a confirmation that a whole key sequence is tapped
 						self._interactive_confirm_key_sequence()
 
-						# # Removes a Return-key if it was tapped in order to close confirmation dialog
-						# # (short time between tapping and closing of a confirmation dialog)
-						# if self._key_sequence[-2:] == ['+Return', '-Return'] and time.time() - self._latest_key_triggered_timestamp < .1:
-						#     self._key_sequence[-2:] = []
-
-						event['value'] = ','.join([x for x in self._key_sequence if any((
+						value = ','.join([x for x in state_model.key_sequence if any((
 							(event_type == 'keyboard_tap'),
 							(event_type == 'keyboard_press' and x.startswith('+')),
 							(event_type == 'keyboard_release' and x.startswith('-')),
 						))])
 					finally:
-						self._capture_keys = False
-						self._key_sequence[:] = []
+						# Removes -Return from the beginning because tapped in order to select event type entry
+						if value.startswith('-Return'):
+							value = value.replace('-Return', '', 1).lstrip(',')
+						# Removes +Return,-Return if tapped in order to close dialog
+						if value.endswith('+Return,-Return') and time.time() - state_model.latest_key_triggered_timestamp < .1:
+							value = value.rsplit('+', 1)[0].rstrip(',')
+						# Replaces +<key>,-<key> with <key> in order to reduce string length
+						for key in value.replace('+', '').replace('-', '').split(','):
+							value = value.replace('+{0},-{0}'.format(key), key).replace(',,', ',')
+
+						state_model.capture_keys = False
+						state_model.key_sequence[:] = []
+
+				value = self._interactive_input_value(
+					message='Enter key sequence ("+" - press, "-" - release, comma-separated, for example +Return,-Return,+Left,-Left)',
+					value=(value or template.get('value', None)),
+				)
+
+				event['value'] = value
 
 			elif event_type.startswith('mouse_'):
 				tmp_pattern_path = os.path.join(state_model.tmp_directory_path, '.screenshot.png')
@@ -319,13 +328,13 @@ class AbstractController(object):
 
 		command = textwrap.dedent("""
 			zenity
-				--width """ + str(20 + 9 * max(len(x) for x in event_types)) + """
-				--height """ + str(140 + 21 * len(event_types)) + """
+				--width=""" + str(20 + 9 * max(len(x) for x in event_types)) + """
+				--height=""" + str(140 + 21 * len(event_types)) + """
 				--list
-				--text "Select event type"
-				--ok-label "Create"
-				--cancel-label "Cancel"
-				--column "Event"
+				--text="Select event type"
+				--ok-label="Create"
+				--cancel-label="Cancel"
+				--column="Event"
 				""" + ' '.join(['"{}"'.format(x) for x in event_types]) + """
 			"""
 		).replace('\n', ' \\\n')
@@ -339,7 +348,7 @@ class AbstractController(object):
 		command = textwrap.dedent("""
 			zenity
 				--question
-				--text '""" + message + """'
+				--text='""" + message + """'
 			"""
 		).replace('\n', ' \\\n')
 		result = subprocess.check_output(command, shell=True, text=True)
@@ -352,8 +361,8 @@ class AbstractController(object):
 		command = textwrap.dedent("""
 			zenity
 				--entry
-				--text "{}"
-				--entry-text "{}"
+				--text="{}"
+				--entry-text="{}"
 			""".format(
 				message or 'Enter value',
 				value or '',
@@ -370,8 +379,10 @@ class AbstractController(object):
 			zenity
 				--question
 				--ellipsize
-				--icon-name "info"
-				--text "Enter key sequence, confirm it with mouse."
+				--icon-name="info"
+				--text="Enter key sequence and confirm it with mouse."
+				--ok-label="Done"
+				--cancel-label="Cancel"
 			"""
 		).replace('\n', ' \\\n')
 		subprocess.check_output(command, shell=True, text=True)
@@ -381,8 +392,8 @@ class AbstractController(object):
 	def _interactive_crop_image(path):
 		command = textwrap.dedent("""
 			{application_path}/interactive-crop
-				--title "Select a region and press Enter"
-				--screen-offset {offset}
+				--title="Select a region and press Enter"
+				--screen-offset={offset}
 				"{path}"
 			"""
 		).replace('\n', '\\\n').format(application_path=sys.path[0], path=path, offset=50)

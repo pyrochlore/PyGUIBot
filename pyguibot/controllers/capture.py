@@ -97,6 +97,7 @@ class CaptureController(AbstractController):
 
 		else:
 			if state_model.capture_keys:
+				logging.getLogger(__name__).warning('Captured: %s', key)
 				state_model.key_sequence.append(('+' if press else '-') + key)
 				state_model.latest_key_triggered_timestamp = time.time()
 

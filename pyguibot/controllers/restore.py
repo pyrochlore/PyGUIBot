@@ -368,12 +368,18 @@ class RestoreController(AbstractController):
 
 	def _tap(self, keys, delay=.08):
 		for key in keys.split(','):
-			if key and key[0] in '+-':
+			if key:
 				try:
-					getattr(Keyboard, {'+': 'press', '-': 'release'}[key[0]])(key[1:])
+					if key[0] in '+-':
+						getattr(Keyboard, {'+': 'press', '-': 'release'}[key[0]])(key[1:])
+						time.sleep(delay)
+					else:
+						getattr(Keyboard, 'press')(key)
+						time.sleep(delay)
+						getattr(Keyboard, 'release')(key)
+						time.sleep(delay)
 				except KeyError as e:
-					logging.getLogger(__name__).warn('Wrong key %s', key)
-				time.sleep(delay)
+					raise Break('Wrong key {key}'.format(**locals()))
 
 	def _locate_image_patterns(self, paths, timeout, delay, threshold):
 		"""Looks for image patterns on the screen, returns centered position or None"""
