@@ -45,6 +45,7 @@ logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 from controllers.abstract import _DefaultDict, AbstractController
 from helpers.timer import Timer
+from models.abstract import is_numeric
 from models.devices import (
 	Keyboard,
 	Mouse,
@@ -222,15 +223,32 @@ class RestoreController(AbstractController):
 						logging.getLogger(__name__).debug('Making event %s', event['type'])
 
 						if event['type'] == 'goto':
-							time.sleep(.2)
 							value = self._substitute_variables_with_values(event['value'])
-							next_index = (index + int(value)) if value.startswith('+') or value.startswith('-') else int(value)
+							if is_numeric(value):
+								# Is number
+								next_index = (index + int(value)) if value.startswith('+') or value.startswith('-') else int(value)
+							else:
+								# Is label
+								_iterator = enumerate(lines)
+								if value.startswith('+'):
+									# Looks for label downward from current
+									value, _filter = value[1:], lambda i, index: (i > index)
+								elif value.startswith('-'):
+									# Looks for label upward from current in reversed order
+									value, _iterator, _filter = value[1:], zip(range(len(lines) - 1, -1, -1), lines[::-1]), lambda i, index: (i < index)
+								else:
+									# Looks for label downward from the beginning
+									_filter = lambda i, index: (True)
+								next_index = next((i for i, x in _iterator if _filter(i, index) for xx in [self._restore(x)] if xx.get('type', '') == 'label' and xx.get('value', '') == value), None)
+								if index is None:
+									raise Break('Label "{value}" not found'.format(**locals()))
 							from_line, to_line = None, None  # Re-sets selected range (because no sense to go up/down only inside it)
+						elif event['type'] == 'label':
+							pass
 						elif event['type'] == 'delay':
 							value = self._substitute_variables_with_values(event['value'])
 							time.sleep(float(value))
 						elif event['type'] in ('jump', 'break'):
-							time.sleep(.2)
 							value = self._substitute_variables_with_values(event['value'])
 							if str(value)[:1] in '-+':
 								event['level'] += 1 + int(value)
@@ -278,65 +296,47 @@ class RestoreController(AbstractController):
 								if exit_code:
 									raise Break('Command was terminated with exit code {exit_code}.'.format(**locals()))
 						elif event['type'] == 'keyboard_press':
-							time.sleep(.2)
 							self._tap(self._substitute_variables_with_values(event['value']), delay=.08)
 						elif event['type'] == 'keyboard_release':
-							time.sleep(.2)
 							self._tap(self._substitute_variables_with_values(event['value']), delay=.08)
 						elif event['type'] == 'keyboard_tap':
-							time.sleep(.2)
 							self._tap(self._substitute_variables_with_values(event['value']), delay=.08)
 						elif event['type'] == 'keyboard_type':
-							time.sleep(.2)
 							value = self._substitute_variables_with_values(event['value'])
 							Keyboard.type(value, interval=.15)
 							# for character in self._substitute_variables_with_values(event['value']):
 							#     Keyboard.press(character)
 							#     time.sleep(.25)
 							#     Keyboard.release(character)
-							#     time.sleep(.25)
 						elif event['type'] == 'mouse_move':
-							time.sleep(.2)
 							Mouse.slide(event_x, event_y)
-							time.sleep(.2)
 						elif event['type'] == 'mouse_press':
-							time.sleep(.2)
 							Mouse.slide(event_x, event_y)
-							time.sleep(.2)
+							time.sleep(.2)  # Waits till reaction is shown
 							Mouse.press(event_x, event_y)
-							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_release':
-							time.sleep(.2)
 							Mouse.slide(event_x, event_y)
-							time.sleep(.2)
+							time.sleep(.2)  # Waits till reaction is shown
 							Mouse.release(event_x, event_y)
-							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_click':
-							time.sleep(.2)
 							Mouse.slide(event_x, event_y)
-							time.sleep(.5)
-							Mouse.click(event_x, event_y, button=1, count=1)
 							time.sleep(.2)  # Waits till reaction is shown
+							Mouse.click(event_x, event_y, button=1, count=1)
 						elif event['type'] == 'mouse_double_click':
-							time.sleep(.2)
 							Mouse.slide(event_x, event_y)
-							time.sleep(.2)
-							Mouse.click(event_x, event_y, button=1, count=1)
-							time.sleep(1.)
+							time.sleep(.2)  # Waits till reaction is shown
+							Mouse.click(event_x, event_y, button=1, count=1)  # Fix: clicks once at first
+							time.sleep(.8)  # Waits till reaction is shown
 							Mouse.click(event_x, event_y, button=1, count=2)
-							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_right_click':
-							time.sleep(.2)
 							Mouse.slide(event_x, event_y)
-							time.sleep(.2)
+							time.sleep(.2)  # Waits till reaction is shown
 							Mouse.click(event_x, event_y, button=2, count=1)
-							time.sleep(.2)  # Waits till reaction is shown
 						elif event['type'] == 'mouse_scroll':
-							time.sleep(.2)
 							Mouse.scroll(horizontal=event_x, vertical=event_y)
-							time.sleep(.2)  # Waits till reaction is shown
 
 						print('Status={}'.format(dict(index=index, code='completed')), file=sys.stderr); sys.stderr.flush()
+						time.sleep(.2)  # Waits till reaction to event is shown and gives time to update status (GUI-side)
 
 					except Break as e:
 						# Updates status (GUI-side)

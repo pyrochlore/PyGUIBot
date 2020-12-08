@@ -310,6 +310,7 @@ class AbstractController(object):
 	def _interactive_select_event_type():
 		event_types = (
 			'goto',
+			'label',
 			'delay',
 			'jump',
 			'break',

@@ -43,6 +43,14 @@ logging.getLogger(__name__).setLevel(getattr(logging, os.environ.get('LOGGING_' 
 from helpers.observable import Observable
 
 
+def is_numeric(value):
+	try:
+		int(value)
+	except ValueError:
+		return False
+	return True
+
+
 class AttrDict(dict):
 	"""Same as the dict, but values are through "." (as attributes) accessible"""
 
