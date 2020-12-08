@@ -66,7 +66,8 @@ Every step is an action.
 Supported actions
 -----------------
 
-* goto -- moves execution to another line, for example relative with "+2" or "-5", or absolute with "0" or "10"
+* goto -- moves execution to another line indicated by number or label, for example '5' or 'begin' (from top), '-3' or '-loop' (upward from here), '+5' or '+exit' (downward from here)
+* label -- creates labeled point for goto
 * delay -- implements a waiting delay, in seconds, for example "2" waits 2 seconds and proceeds to next action
 * jump -- proceeds to another branch, for example "-2" skips from execution of current and next outer branch
 * break -- does the same as "jump" but highlights current branch (or the whole execution) as "failed"
