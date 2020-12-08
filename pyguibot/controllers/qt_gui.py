@@ -484,13 +484,13 @@ class MainController(AbstractController):
 			thread.schedule(handler, path=os.path.dirname(os.path.realpath(state_model.src_path)))
 			thread.start()
 
-	def _get_entry_fingerprint(self, index):
-		view = self.__view
-		tree = view.commands_tree
+	# def _get_entry_fingerprint(self, index):
+	#     view = self.__view
+	#     tree = view.commands_tree
 
-		entry = tree.topLevelItem(index)
-		# return str(index) + ':' + ''.join([''.join([xx for xx in unicode(entry.text(x)) if xx.isalnum()]) for x in range(tree.columnCount()) if x != 1])
-		return str(index)
+	#     entry = tree.topLevelItem(index)
+	#     # return str(index) + ':' + ''.join([''.join([xx for xx in unicode(entry.text(x)) if xx.isalnum()]) for x in range(tree.columnCount()) if x != 1])
+	#     return str(index)
 
 	def _fill(self):
 		state_model = self._state_model
