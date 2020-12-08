@@ -254,9 +254,9 @@ class MainController(AbstractController):
 		else:
 			logging.getLogger(__name__).warning(
 				'Key %s%s%s%s has no handler',
-				'Ctrl+' if QtCore.Qt.ControlModifier & event.modifiers() else '',
-				'Alt+' if QtCore.Qt.AltModifier & event.modifiers() else '',
-				'Shift+' if QtCore.Qt.ShiftModifier & event.modifiers() else '',
+				'Ctrl+' if event.modifiers() & QtCore.Qt.ControlModifier else '',
+				'Alt+' if event.modifiers() & QtCore.Qt.AltModifier else '',
+				'Shift+' if event.modifiers() & QtCore.Qt.ShiftModifier else '',
 				next((key for key in dir(QtCore.Qt) if key.startswith('Key_') for value in [getattr(QtCore.Qt, key)] if value == event.key()), '<unknown({})>'.format(event.key())),
 			)
 
