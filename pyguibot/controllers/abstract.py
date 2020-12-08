@@ -131,7 +131,10 @@ class AbstractController(object):
 			event['type'] = event_type = self._interactive_select_event_type()
 
 			if event_type == 'goto':
-				event['value'] = self._interactive_input_value(message='Enter line number')
+				event['value'] = self._interactive_input_value(message='Enter line number or label (with optional + or - to indicate search direction)')
+
+			elif event_type == 'label':
+				event['value'] = self._interactive_input_value(message='Enter label name (for example, beginning or loop)')
 
 			elif event_type == 'delay':
 				event['value'] = self._interactive_input_value(message='Enter delay (in s.)')
