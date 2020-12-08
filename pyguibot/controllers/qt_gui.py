@@ -536,7 +536,7 @@ class MainController(AbstractController):
 					entry.setFlags(entry.flags() ^ QtCore.Qt.ItemIsDropEnabled)  # Disallow dropping inside item
 					tree.addTopLevelItem(entry)
 
-				self._fill_tree_entry(index + 1, entry, line)
+				self._fill_tree_entry(index, entry, line)
 
 			# Removes superfluous entries
 			for index in range(index + 1, tree.topLevelItemCount()):
@@ -548,12 +548,13 @@ class MainController(AbstractController):
 		view = self.__view
 		tree = view.commands_tree
 
+		line_number = index + 1
 		text = {k: '' for k in range(tree.columnCount())}
 		icons = dict()
 
 		event = self._restore(line)
 
-		text[0] += '{index}. '.format(**locals())
+		text[0] += '{line_number}. '.format(**locals())
 		if 'comments' in event:  # If line is commented
 			text[0] += event['comments'].lstrip()
 			entry.setFirstColumnSpanned(True)
@@ -623,12 +624,12 @@ class MainController(AbstractController):
 		for _index in range(tree.columnCount()):
 			if _index in text:
 				entry.setText(_index, text[_index])
-				entry.setToolTip(_index, '#{}  {}'.format(index, line))
-				entry.setStatusTip(_index, '#{}  {}'.format(index, line))
+				entry.setToolTip(_index, '#{}  {}'.format(line_number, line))
+				entry.setStatusTip(_index, '#{}  {}'.format(line_number, line))
 			if _index in icons:
 				entry.setIcon(_index, QtGui.QIcon(icons[_index]))
-				entry.setToolTip(_index, '#{}  {}'.format(index, line))
-				entry.setStatusTip(_index, '#{}  {}'.format(index, line))
+				entry.setToolTip(_index, '#{}  {}'.format(line_number, line))
+				entry.setStatusTip(_index, '#{}  {}'.format(line_number, line))
 
 	@staticmethod
 	def _show_exception(message):
