@@ -54,6 +54,8 @@ class AbstractController(object):
 		state_model.dst_directory_path = dst_directory_path = (lambda x: (x if os.path.isdir(x) else os.path.dirname(x)))(os.path.realpath(path or '.'))
 		# TODO: move temporary directory to /tmp
 		state_model.tmp_directory_path = tmp_directory_path = os.path.join(dst_directory_path, '.tmp.pyguibot')
+		state_model.exception = ''
+
 		if not os.path.exists(tmp_directory_path):
 			os.makedirs(tmp_directory_path)
 
@@ -106,8 +108,14 @@ class AbstractController(object):
 
 	def _restore(self, data):
 		"""Parses raw string with a trailing newline, returns a dict-like object"""
+		state_model = self._state_model
+
 		data = data.rstrip(os.linesep)
-		event = ast.literal_eval(data.lstrip()) if data.lstrip().startswith('{') else dict(comments=data.lstrip())
+		try:
+			event = ast.literal_eval(data.lstrip()) if data.lstrip().startswith('{') else dict(comments=data.lstrip())
+		except SyntaxError as e:
+			state_model.exception = 'Can not parse data:<br/><pre>{data}</pre>'.format(**locals())
+			raise
 		event['level'] = (len(data) - len(data.lstrip()))
 		return event
 

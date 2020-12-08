@@ -79,7 +79,6 @@ class MainController(AbstractController):
 		state_model.with_observer = with_observer
 		state_model.shell_command_prefix = shell_command_prefix
 		state_model.status = 'Click "Play" to (re)run or "Record" to add new events...'
-		state_model.exception = ''
 
 		###
 		if state_model.src_path is None and sys.stdin.isatty():
