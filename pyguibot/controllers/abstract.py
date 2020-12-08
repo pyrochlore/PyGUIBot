@@ -166,7 +166,7 @@ class AbstractController(object):
 				# If self-object does not listen to keyboard events
 				if not hasattr(self, '_key_sequence'):
 					event['value'] = self._interactive_input_value(
-						message='Enter key sequence ("+" for key press, "-" for key release, comma-separated)',
+						message='Enter key sequence ("+" - press, "-" - release, comma-separated, for example +Return,-Return,+Left,-Left)',
 						value=template.get('value', None),
 					)
 				else:

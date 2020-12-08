@@ -767,8 +767,11 @@ class MainController(AbstractController):
 		state_model = self._state_model
 
 		if state_model.process is not None:
-			os.killpg(os.getpgid(state_model.process.pid), signal.SIGINT)
-			state_model.process.wait()
+			try:
+				os.killpg(os.getpgid(state_model.process.pid), signal.SIGINT)
+				state_model.process.wait()
+			except KeyboardInterrupt:
+				pass
 			state_model.process = None
 
 	def _record(self):
