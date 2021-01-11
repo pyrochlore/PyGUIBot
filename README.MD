@@ -110,6 +110,12 @@ ToDo
  * Clean screenshots if not bound with events.log
 
 
+License
+=======
+
+GNU GPL v3
+
+
 Acknowledgments
 ===============
 
