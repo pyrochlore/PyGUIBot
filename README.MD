@@ -24,6 +24,12 @@ Screenshots
 ![](screenshots/screenshot_3.png) 
 
 
+Screencast
+==========
+
+[![Watch the screencast](screencasts/pyguibot.png)](screencasts/pyguibot.mp4)
+
+
 Requirements
 ============
 
