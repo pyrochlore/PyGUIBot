@@ -166,7 +166,7 @@ class MainController(AbstractController):
 		if model is state_model:
 			if current[0] is None or 'src_path' in current[0]:
 				if previous[0] is not None and previous[0] != current[0]:
-					with self._with_data(src_path=previous[0], dst_path=current[0]):
+					with self._with_data(src_path=previous[0]['src_path'], dst_path=current[0]['src_path']):
 						pass
 
 				if state_model.src_path is not None:
